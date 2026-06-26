@@ -1,0 +1,2417 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GeoSolar Sentinel</title>
+<style>
+  :root {
+    --void: #04070F;
+    --deep: #080E1E;
+    --panel: #0C1428;
+    --ring: #112040;
+    --solar: #FF6B1A;
+    --geo: #00C8A0;
+    --geo-dim: #007A62;
+    --alert-hi: #FF3B5C;
+    --alert-lo: #FFD166;
+    --text: #D8E4F0;
+    --text-dim: #6B8BAA;
+    --font-display: 'Courier New', monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--void); color: var(--text); font-family: var(--font-body); min-height: 100vh; overflow-x: hidden; }
+
+  .header {
+    background: linear-gradient(180deg, var(--deep) 0%, var(--void) 100%);
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--ring);
+    display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 1000;
+  }
+  .logo-wrap { position: relative; flex-shrink: 0; }
+  .logo-svg { width: 42px; height: 42px; }
+  .pulse-ring {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 54px; height: 54px; border-radius: 50%;
+    border: 1.5px solid var(--solar); opacity: 0;
+    animation: pulseRing 3s ease-out infinite;
+  }
+  @keyframes pulseRing {
+    0% { opacity: 0.8; transform: translate(-50%,-50%) scale(0.7); }
+    100% { opacity: 0; transform: translate(-50%,-50%) scale(1.5); }
+  }
+  .app-name { font-family: var(--font-display); font-size: 15px; font-weight: bold; letter-spacing: 2px; color: var(--solar); text-transform: uppercase; }
+  .app-sub { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; margin-top: 1px; }
+  .last-update { margin-left: auto; font-size: 9px; color: var(--text-dim); font-family: var(--font-display); text-align: right; line-height: 1.6; }
+
+  .tabs { display: flex; background: var(--deep); border-bottom: 1px solid var(--ring); }
+  .tab { flex: 1; padding: 10px 4px; text-align: center; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; font-family: var(--font-display); }
+  .tab.active { color: var(--solar); border-bottom-color: var(--solar); background: rgba(255,107,26,0.06); }
+
+  .panel { display: none; padding: 14px 14px 80px; }
+  .panel.active { display: block; }
+
+  .solar-card { background: var(--panel); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; margin-bottom: 14px; position: relative; overflow: hidden; }
+  .solar-card::before { content: ''; position: absolute; top: -40px; right: -40px; width: 120px; height: 120px; background: radial-gradient(circle, rgba(255,107,26,0.12) 0%, transparent 70%); pointer-events: none; }
+  .card-label { font-family: var(--font-display); font-size: 9px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 10px; }
+  .kp-display { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 14px; }
+  .kp-value { font-family: var(--font-display); font-size: 56px; font-weight: bold; line-height: 1; color: var(--solar); text-shadow: 0 0 20px rgba(255,107,26,0.5); }
+  .kp-unit { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; font-family: var(--font-display); }
+  .kp-bar { display: flex; gap: 3px; margin-bottom: 10px; }
+  .kp-seg { flex: 1; height: 6px; border-radius: 3px; background: var(--ring); transition: background 0.5s; }
+  .kp-seg.active-seg { background: var(--solar); }
+  .kp-seg.alert-seg { background: var(--alert-hi); }
+  .solar-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .solar-metric { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; text-align: center; }
+  .metric-val { font-family: var(--font-display); font-size: 14px; color: var(--geo); font-weight: bold; }
+  .metric-lbl { font-size: 9px; color: var(--text-dim); margin-top: 3px; letter-spacing: 0.5px; }
+
+  .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 20px; font-size: 10px; font-family: var(--font-display); letter-spacing: 1px; text-transform: uppercase; margin-top: 10px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .status-quiet { background: rgba(0,200,160,0.15); color: var(--geo); border: 1px solid var(--geo-dim); }
+  .status-quiet .status-dot { background: var(--geo); box-shadow: 0 0 6px var(--geo); }
+  .status-moderate { background: rgba(255,209,102,0.15); color: var(--alert-lo); border: 1px solid var(--alert-lo); }
+  .status-moderate .status-dot { background: var(--alert-lo); box-shadow: 0 0 6px var(--alert-lo); }
+  .status-storm { background: rgba(255,59,92,0.15); color: var(--alert-hi); border: 1px solid var(--alert-hi); }
+  .status-storm .status-dot { background: var(--alert-hi); box-shadow: 0 0 6px var(--alert-hi); animation: blink 1s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .diag-card { background: var(--panel); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .disclaimer { background: rgba(255,107,26,0.07); border-left: 2px solid var(--solar); border-radius: 4px; padding: 8px 10px; font-size: 10px; color: var(--text-dim); line-height: 1.5; margin-bottom: 14px; }
+  .zone-list { display: flex; flex-direction: column; gap: 8px; }
+  .zone-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid transparent; transition: border-color 0.3s; }
+  .zone-item.elevated { border-color: rgba(255,209,102,0.3); }
+  .zone-item.high { border-color: rgba(255,59,92,0.3); }
+  .zone-rank { font-family: var(--font-display); font-size: 10px; color: var(--text-dim); width: 18px; text-align: center; flex-shrink: 0; }
+  .zone-info { flex: 1; }
+  .zone-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .zone-detail { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+  .zone-score-wrap { text-align: right; flex-shrink: 0; }
+  .zone-score { font-family: var(--font-display); font-size: 18px; font-weight: bold; }
+  .zone-score-lbl { font-size: 9px; color: var(--text-dim); }
+  .score-low { color: var(--geo); }
+  .score-mid { color: var(--alert-lo); }
+  .score-hi { color: var(--alert-hi); }
+  .zone-bar { height: 3px; border-radius: 2px; background: var(--ring); overflow: hidden; margin-top: 5px; }
+  .zone-bar-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+
+  /* MAPA SVG */
+  .map-wrap { background: var(--panel); border: 1px solid var(--ring); border-radius: 12px; overflow: hidden; margin-bottom: 14px; position: relative; }
+  #worldMap { width: 100%; display: block; }
+  .map-legend { padding: 10px 14px; border-top: 1px solid var(--ring); display: flex; gap: 14px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-dim); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .quake-card { background: var(--panel); border: 1px solid var(--ring); border-radius: 12px; overflow: hidden; margin-bottom: 14px; }
+  .quake-header { padding: 12px 14px; border-bottom: 1px solid var(--ring); font-family: var(--font-display); font-size: 10px; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+  .quake-count { background: var(--solar); color: var(--void); font-weight: bold; padding: 2px 7px; border-radius: 10px; font-size: 10px; }
+  .quake-item { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; align-items: center; gap: 10px; }
+  .quake-item:last-child { border-bottom: none; }
+  .mag-badge { width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: bold; font-size: 14px; flex-shrink: 0; }
+  .mag-minor { background: rgba(0,200,160,0.15); color: var(--geo); }
+  .mag-moderate { background: rgba(255,209,102,0.15); color: var(--alert-lo); }
+  .mag-major { background: rgba(255,59,92,0.15); color: var(--alert-hi); }
+  .quake-info { flex: 1; overflow: hidden; }
+  .quake-place { font-size: 11px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .quake-meta { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+  .loading { text-align: center; padding: 30px; color: var(--text-dim); font-family: var(--font-display); font-size: 11px; letter-spacing: 1px; }
+  .spinner { width: 28px; height: 28px; border: 2px solid var(--ring); border-top-color: var(--solar); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg { background: rgba(255,59,92,0.08); border: 1px solid rgba(255,59,92,0.3); border-radius: 8px; padding: 12px; font-size: 11px; color: var(--alert-hi); text-align: center; margin: 10px 0; }
+  .info-msg { background: rgba(255,209,102,0.07); border: 1px solid rgba(255,209,102,0.2); border-radius: 8px; padding: 10px 12px; font-size: 10px; color: var(--alert-lo); margin: 10px 0; line-height: 1.5; }
+
+  .refresh-btn { display: block; width: 100%; padding: 12px; background: rgba(255,107,26,0.1); border: 1px solid var(--solar); border-radius: 10px; color: var(--solar); font-family: var(--font-display); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; text-align: center; transition: background 0.2s; margin-top: 8px; }
+  .refresh-btn:active { background: rgba(255,107,26,0.2); }
+
+  .section-title { font-family: var(--font-display); font-size: 9px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--ring); }
+
+  .about-block { background: var(--panel); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .about-block p { font-size: 12px; color: var(--text-dim); line-height: 1.7; margin-bottom: 10px; }
+  .about-block p:last-child { margin-bottom: 0; }
+  .highlight { color: var(--geo); font-weight: 600; }
+  .source-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .source-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-dim); }
+  .source-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--solar); flex-shrink: 0; }
+  .version-tag { text-align: center; font-family: var(--font-display); font-size: 9px; color: var(--ring); letter-spacing: 2px; margin-top: 20px; }
+
+  /* ── TAMAÑOS DE TEXTO ── */
+  body.fs-sm { font-size: 12px; }
+  body.fs-sm .quake-place  { font-size: 10px; }
+  body.fs-sm .quake-meta   { font-size: 9px; }
+  body.fs-sm .zone-name    { font-size: 11px; }
+  body.fs-sm .zone-detail  { font-size: 9px; }
+  body.fs-sm .pair-detail  { font-size: 9px; }
+  body.fs-sm .stat-lbl     { font-size: 9px; }
+  body.fs-sm .card-label   { font-size: 8px; }
+  body.fs-sm .section-title{ font-size: 8px; }
+  body.fs-sm .tab          { font-size: 9px; }
+  body.fs-sm .kp-value     { font-size: 48px; }
+  body.fs-sm .metric-val   { font-size: 12px; }
+  body.fs-sm .metric-lbl   { font-size: 8px; }
+  body.fs-sm .about-block p{ font-size: 11px; }
+  body.fs-sm .source-item  { font-size: 10px; }
+  body.fs-sm .disclaimer   { font-size: 9px; }
+  body.fs-sm .corr-label   { font-size: 10px; }
+  body.fs-sm .corr-sub     { font-size: 9px; }
+
+  body.fs-lg { font-size: 17px; }
+  body.fs-lg .quake-place  { font-size: 14px; }
+  body.fs-lg .quake-meta   { font-size: 12px; }
+  body.fs-lg .zone-name    { font-size: 15px; }
+  body.fs-lg .zone-detail  { font-size: 12px; }
+  body.fs-lg .pair-detail  { font-size: 12px; }
+  body.fs-lg .stat-lbl     { font-size: 12px; }
+  body.fs-lg .card-label   { font-size: 11px; }
+  body.fs-lg .section-title{ font-size: 11px; }
+  body.fs-lg .tab          { font-size: 12px; padding: 12px 4px; }
+  body.fs-lg .kp-value     { font-size: 64px; }
+  body.fs-lg .metric-val   { font-size: 17px; }
+  body.fs-lg .metric-lbl   { font-size: 11px; }
+  body.fs-lg .about-block p{ font-size: 15px; }
+  body.fs-lg .source-item  { font-size: 13px; }
+  body.fs-lg .disclaimer   { font-size: 12px; }
+  body.fs-lg .corr-label   { font-size: 14px; }
+  body.fs-lg .corr-sub     { font-size: 12px; }
+  body.fs-lg .zone-score   { font-size: 22px; }
+  body.fs-lg .mag-badge    { width: 46px; height: 46px; font-size: 16px; }
+  body.fs-lg .hist-btn     { font-size: 12px; padding: 9px 16px; }
+  body.fs-lg .zone-pill    { font-size: 12px; padding: 8px 14px; }
+  .zone-scroll { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 4px; scrollbar-width: none; }
+  .zone-scroll::-webkit-scrollbar { display: none; }
+  .zone-pill { flex-shrink: 0; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--ring); background: transparent; color: var(--text-dim); font-family: var(--font-display); font-size: 10px; letter-spacing: 0.5px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  .zone-pill.active { background: rgba(0,200,160,0.15); border-color: var(--geo); color: var(--geo); }
+
+  /* ── HISTÓRICO ── */
+  .hist-card { background: var(--panel); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .hist-controls { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .hist-btn { padding: 7px 14px; border-radius: 8px; border: 1px solid var(--ring); background: transparent; color: var(--text-dim); font-family: var(--font-display); font-size: 10px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; }
+  .hist-btn.active { background: rgba(255,107,26,0.15); border-color: var(--solar); color: var(--solar); }
+
+  /* Mini chart SVG */
+  .chart-wrap { background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+  #histChart { width: 100%; display: block; }
+
+  /* Stats grid */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .stat-box { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px 12px; }
+  .stat-val { font-family: var(--font-display); font-size: 20px; font-weight: bold; }
+  .stat-lbl { font-size: 10px; color: var(--text-dim); margin-top: 3px; line-height: 1.4; }
+
+  /* Event pairs table */
+  .pairs-list { display: flex; flex-direction: column; gap: 6px; }
+  .pair-item { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px 12px; border-left: 3px solid var(--ring); }
+  .pair-item.pair-hi { border-left-color: var(--alert-hi); }
+  .pair-item.pair-mid { border-left-color: var(--alert-lo); }
+  .pair-item.pair-lo { border-left-color: var(--geo); }
+  .pair-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .pair-kp { font-family: var(--font-display); font-size: 13px; font-weight: bold; }
+  .pair-delay { font-size: 10px; color: var(--text-dim); font-family: var(--font-display); }
+  .pair-detail { font-size: 10px; color: var(--text-dim); line-height: 1.5; }
+
+  /* Correlation badge */
+  .corr-badge { display: flex; align-items: center; gap: 10px; padding: 12px; background: rgba(0,200,160,0.07); border: 1px solid rgba(0,200,160,0.2); border-radius: 8px; margin-bottom: 12px; }
+  .corr-val { font-family: var(--font-display); font-size: 28px; font-weight: bold; }
+  .corr-info { flex: 1; }
+  .corr-label { font-size: 11px; color: var(--text); font-weight: 600; }
+  .corr-sub { font-size: 10px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-wrap">
+    <div class="pulse-ring"></div>
+    <svg class="logo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="sunGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#FF8C42"/>
+          <stop offset="100%" stop-color="#FF3B1A"/>
+        </radialGradient>
+        <radialGradient id="earthGrad" cx="40%" cy="35%" r="60%">
+          <stop offset="0%" stop-color="#1A6B8A"/>
+          <stop offset="100%" stop-color="#04070F"/>
+        </radialGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="2" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <rect width="100" height="100" rx="22" fill="#080E1E"/>
+      <g opacity="0.4" filter="url(#glow)">
+        <line x1="22" y1="22" x2="10" y2="10" stroke="#FF6B1A" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="22" y1="22" x2="8" y2="22" stroke="#FF6B1A" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="22" y1="22" x2="10" y2="34" stroke="#FF6B1A" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="22" y1="22" x2="22" y2="8" stroke="#FF6B1A" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="22" y1="22" x2="34" y2="10" stroke="#FF6B1A" stroke-width="1.5" stroke-linecap="round"/>
+      </g>
+      <circle cx="22" cy="22" r="11" fill="url(#sunGrad)" filter="url(#glow)"/>
+      <path d="M 30 16 Q 55 12 62 30" stroke="#FF8C42" stroke-width="1.8" fill="none" stroke-dasharray="3,2" opacity="0.8"/>
+      <polygon points="62,30 68,26 64,35" fill="#FF8C42" opacity="0.8"/>
+      <circle cx="68" cy="68" r="20" fill="url(#earthGrad)" filter="url(#glow)"/>
+      <ellipse cx="64" cy="62" rx="7" ry="5" fill="#1E8A4A" opacity="0.7" transform="rotate(-20,64,62)"/>
+      <ellipse cx="74" cy="70" rx="4" ry="6" fill="#1E8A4A" opacity="0.6" transform="rotate(10,74,70)"/>
+      <ellipse cx="68" cy="68" rx="28" ry="20" fill="none" stroke="#00C8A0" stroke-width="1" opacity="0.35" transform="rotate(-30,68,68)"/>
+      <ellipse cx="68" cy="68" rx="34" ry="24" fill="none" stroke="#00C8A0" stroke-width="0.8" opacity="0.2" transform="rotate(-30,68,68)"/>
+      <circle cx="72" cy="74" r="3" fill="#FF3B5C" opacity="0.9" filter="url(#glow)"/>
+      <circle cx="72" cy="74" r="6" fill="none" stroke="#FF3B5C" stroke-width="1" opacity="0.5"/>
+    </svg>
+  </div>
+  <div>
+    <div class="app-name">GeoSolar</div>
+    <div class="app-sub">SENTINEL · BETA v0.4</div>
+  </div>
+  <div class="last-update" id="lastUpdate">Cargando...<br>—</div>
+  <!-- Control tamaño texto -->
+  <div style="display:flex;flex-direction:column;gap:3px;margin-left:6px;flex-shrink:0;">
+    <button onclick="setFontSize('sm')" id="fsS" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--ring);background:transparent;color:var(--text-dim);cursor:pointer;font-family:var(--font-display);line-height:1;">A</button>
+    <button onclick="setFontSize('md')" id="fsM" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--solar);background:rgba(255,107,26,0.12);color:var(--solar);cursor:pointer;font-family:var(--font-display);line-height:1;">A</button>
+    <button onclick="setFontSize('lg')" id="fsL" style="font-size:13px;padding:2px 6px;border-radius:4px;border:1px solid var(--ring);background:transparent;color:var(--text-dim);cursor:pointer;font-family:var(--font-display);line-height:1;">A</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('solar',this)">☀ Solar</div>
+  <div class="tab" onclick="showTab('mapa',this)">🌐 Mapa</div>
+  <div class="tab" onclick="showTab('indice',this)">📡 Índice</div>
+  <div class="tab" onclick="showTab('historico',this)">📊 Histórico</div>
+  <div class="tab" onclick="showTab('ondas',this)">🛰 Ondas</div>
+  <div class="tab" onclick="showTab('info',this)">ℹ Info</div>
+</div>
+
+<!-- SOLAR -->
+<div class="panel active" id="tab-solar">
+  <div class="solar-card">
+    <div class="card-label">Índice Planetario Kp · Tiempo Real</div>
+    <div class="kp-display">
+      <div class="kp-value" id="kpValue">—</div>
+      <div class="kp-unit">Kp</div>
+    </div>
+    <div class="kp-bar" id="kpBar">
+      <div class="kp-seg" data-i="0"></div><div class="kp-seg" data-i="1"></div>
+      <div class="kp-seg" data-i="2"></div><div class="kp-seg" data-i="3"></div>
+      <div class="kp-seg" data-i="4"></div><div class="kp-seg" data-i="5"></div>
+      <div class="kp-seg" data-i="6"></div><div class="kp-seg" data-i="7"></div>
+      <div class="kp-seg" data-i="8"></div>
+    </div>
+    <div class="solar-grid">
+      <div class="solar-metric"><div class="metric-val" id="windSpeed">—</div><div class="metric-lbl">Viento km/s</div></div>
+      <div class="solar-metric"><div class="metric-val" id="bField">—</div><div class="metric-lbl">Campo-B nT</div></div>
+      <div class="solar-metric"><div class="metric-val" id="density">—</div><div class="metric-lbl">Densidad p/cm³</div></div>
+    </div>
+    <div id="statusBadge"></div>
+  </div>
+
+  <!-- Dst Card -->
+  <div class="solar-card" style="margin-top:0;">
+    <div class="card-label">Índice Dst · Perturbación Tormenta (WDC Kyoto / USGS)</div>
+    <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:10px;">
+      <div style="font-family:var(--font-display);font-size:48px;font-weight:bold;line-height:1;" id="dstValue">—</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;font-family:var(--font-display);">nT</div>
+      <div id="dstBadge" style="margin-bottom:8px;"></div>
+    </div>
+    <!-- Mini gráfico Dst 24h -->
+    <svg id="dstChart" viewBox="0 0 400 60" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;margin-bottom:8px;">
+      <rect width="400" height="60" fill="rgba(0,0,0,0.2)" rx="4"/>
+      <line x1="0" y1="30" x2="400" y2="30" stroke="#1A3050" stroke-width="0.8"/>
+      <text x="2" y="12" font-size="7" fill="#1A3050" font-family="monospace">0 nT</text>
+      <text x="2" y="58" font-size="7" fill="#1A3050" font-family="monospace">−100</text>
+      <g id="dstLine"></g>
+    </svg>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+      <div class="solar-metric"><div class="metric-val" id="dstMin">—</div><div class="metric-lbl">Mín 24h nT</div></div>
+      <div class="solar-metric"><div class="metric-val" id="dstMax">—</div><div class="metric-lbl">Máx 24h nT</div></div>
+      <div class="solar-metric"><div class="metric-val" id="dstTrend">—</div><div class="metric-lbl">Tendencia</div></div>
+    </div>
+    <div style="font-size:9px;color:var(--text-dim);margin-top:8px;line-height:1.5;">
+      Dst &lt; −30nT = tormenta leve · &lt; −100nT = intensa · &lt; −250nT = severa<br>
+      Fuente: USGS Geomag Real-time · Umbral Kyoto como referencia
+    </div>
+  </div>
+
+  <div id="corsNote" class="info-msg" style="display:none">
+    ⚠ <strong>Preview de Claude:</strong> Las APIs externas (NOAA, USGS) bloquean CORS en iframes. En AppMint (WebView nativo) funcionan correctamente. Los datos de demo se muestran para visualizar la interfaz.
+  </div>
+
+  <div class="section-title">Sismos últimas 24h · M≥2.5</div>
+  <div class="quake-card">
+    <div class="quake-header">
+      <span>Eventos recientes</span>
+      <span class="quake-count" id="quakeCount">—</span>
+    </div>
+    <div id="quakeList"><div class="loading"><div class="spinner"></div>Cargando sismos...</div></div>
+  </div>
+  <button class="refresh-btn" onclick="loadAll()">↻ Actualizar datos</button>
+</div>
+
+<!-- MAPA -->
+<div class="panel" id="tab-mapa">
+  <div class="section-title">Sismos 7 días · M≥4.5 · Mapa global</div>
+  <div class="map-wrap">
+    <svg id="worldMap" viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg">
+      <!-- Ocean background -->
+      <rect width="800" height="420" fill="#060F1E"/>
+      <!-- Simplified world continents -->
+      <!-- North America -->
+      <path d="M 80 60 L 95 50 L 130 48 L 160 55 L 185 70 L 195 90 L 200 120 L 190 150 L 175 170 L 165 195 L 155 210 L 140 220 L 120 215 L 105 200 L 90 180 L 75 155 L 68 130 L 65 100 Z" fill="#0F2A18" stroke="#1A4A28" stroke-width="0.8"/>
+      <!-- Central America -->
+      <path d="M 140 220 L 155 210 L 160 230 L 155 245 L 145 240 Z" fill="#0F2A18" stroke="#1A4A28" stroke-width="0.8"/>
+      <!-- South America -->
+      <path d="M 155 245 L 175 240 L 195 250 L 210 270 L 215 300 L 210 330 L 195 355 L 175 370 L 155 365 L 140 340 L 132 310 L 133 280 L 140 260 Z" fill="#0F2A18" stroke="#1A4A28" stroke-width="0.8"/>
+      <!-- Europe -->
+      <path d="M 360 60 L 390 55 L 410 62 L 415 80 L 405 90 L 390 95 L 370 88 L 355 75 Z" fill="#0F2A18" stroke="#1A4A28" stroke-width="0.8"/>
+      <!-- Africa -->
+      <path d="M 365 110 L 395 105 L 420 115 L 430 140 L 432 175 L 425 210 L 408 240 L 385 260 L 362 255 L 345 230 L 340 195 L 342 160 L 350 130 Z" fill="#0F2A18" stroke="#1A4A28" stroke-width="0.8"/>
+      <!-- Asia -->
+      <path d="M 415 50 L 500 42 L 580 50 L 620 65 L 635 90 L 620 115 L 590 130 L 555 135 L 520 128 L 490 120 L 460 110 L 430 100 L 415 80 Z" fill="#0F2A18" stroke="#1A4A28" stroke-width="0.8"/>
+      <!-- South Asia -->
+      <path d="M 490 130 L 520 128 L 530 145 L 525 165 L 510 170 L 495 158 L 488 142 Z" fill="#0F2A18" stroke="#1A4A28" stroke-width="0.8"/>
+      <!-- Southeast Asia -->
+      <path d="M 560 130 L 595 135 L 615 155 L 610 175 L 590 178 L 568 165 L 555 148 Z" fill="#0F2A18" stroke="#1A4A28" stroke-width="0.8"/>
+      <!-- Japan -->
+      <path d="M 635 80 L 648 75 L 655 90 L 648 100 L 638 95 Z" fill="#0F2A18" stroke="#1A4A28" stroke-width="0.8"/>
+      <!-- Australia -->
+      <path d="M 590 255 L 640 248 L 670 260 L 678 285 L 668 310 L 645 322 L 615 318 L 590 300 L 582 275 Z" fill="#0F2A18" stroke="#1A4A28" stroke-width="0.8"/>
+      <!-- Grid lines -->
+      <line x1="0" y1="210" x2="800" y2="210" stroke="#0A1828" stroke-width="0.5"/>
+      <line x1="400" y1="0" x2="400" y2="420" stroke="#0A1828" stroke-width="0.5"/>
+      <!-- Equator label -->
+      <text x="4" y="207" font-size="7" fill="#112040" font-family="monospace">EQ</text>
+      <!-- Quake dots rendered by JS -->
+      <g id="quakeDots"></g>
+      <!-- Tooltip -->
+      <rect id="ttBox" x="0" y="0" width="0" height="0" rx="4" fill="#0C1428" stroke="#112040" stroke-width="1"/>
+      <text id="ttText" x="0" y="0" font-size="9" fill="#D8E4F0" font-family="monospace"></text>
+    </svg>
+    <div class="map-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#00C8A0"></div>M 2.5–4.4</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FFD166"></div>M 4.5–5.9</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FF3B5C"></div>M 6.0+</div>
+    </div>
+  </div>
+</div>
+
+<!-- ÍNDICE -->
+<div class="panel" id="tab-indice">
+  <div class="diag-card">
+    <div class="card-label">Índice Diagnóstico por Zona · Modelo Beta</div>
+    <div class="disclaimer">⚠ Este índice <strong>no predice sismos</strong>. Identifica zonas donde la convergencia de actividad solar actual + historial sísmico genera un patrón de atención. Es exploratorio y experimental.</div>
+    <div class="zone-list" id="zoneList"><div class="loading"><div class="spinner"></div>Calculando...</div></div>
+  </div>
+  <div class="solar-card" style="padding:12px;">
+    <div class="card-label">Fórmula del índice (transparente)</div>
+    <div style="font-family:var(--font-display);font-size:10px;color:var(--geo);line-height:2;margin-top:6px;">
+      I = (Kp/9×40) + (frec_base×30) + (silencio×20) + (mag_prom×10)
+    </div>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:6px;line-height:1.6;">Kp actual · Frecuencia histórica USGS · Días sin sismo · Magnitud promedio zonal</div>
+  </div>
+</div>
+
+<!-- HISTÓRICO -->
+<div class="panel" id="tab-historico">
+  <div class="hist-card">
+    <div class="card-label">Análisis Histórico · Tormentas Kp vs Sismos</div>
+    <div style="font-size:10px;color:var(--text-dim);line-height:1.6;margin-bottom:12px;">
+      Cruza los últimos 30 días de actividad Kp (NOAA) con sismos M≥5.0 (USGS) por región. Busca si los sismos ocurren con mayor frecuencia en ventanas de 0–7 días post-tormenta.
+    </div>
+
+    <!-- Filtro de zona -->
+    <div class="section-title">Zona de análisis</div>
+    <div class="zone-scroll" id="zoneScroll">
+      <button class="zone-pill active" onclick="setZone('global',this)">🌐 Global</button>
+      <button class="zone-pill" onclick="setZone('caribe',this)">🇨🇴 Caribe/Col</button>
+      <button class="zone-pill" onclick="setZone('latam',this)">🌎 LATAM</button>
+      <button class="zone-pill" onclick="setZone('japon',this)">🇯🇵 Japón</button>
+      <button class="zone-pill" onclick="setZone('indonesia',this)">🌊 Indonesia</button>
+      <button class="zone-pill" onclick="setZone('cascadia',this)">🏔 Cascadia</button>
+      <button class="zone-pill" onclick="setZone('turquia',this)">🇹🇷 Turquía</button>
+      <button class="zone-pill" onclick="setZone('california',this)">🌉 California</button>
+    </div>
+
+    <!-- Info zona activa -->
+    <div id="zoneInfoBox" style="background:rgba(0,200,160,0.07);border:1px solid rgba(0,200,160,0.2);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:10px;color:var(--text-dim);line-height:1.6;">
+      <span id="zoneInfoText">Analizando todos los sismos del mundo</span>
+    </div>
+
+    <!-- Umbral Kp ajustable -->
+    <div class="section-title">Umbral Kp de tormenta</div>
+    <div class="hist-controls">
+      <button class="hist-btn" onclick="setKpThreshold(3,this)">Kp≥3</button>
+      <button class="hist-btn active" onclick="setKpThreshold(4,this)">Kp≥4 G1</button>
+      <button class="hist-btn" onclick="setKpThreshold(5,this)">Kp≥5 G1+</button>
+      <button class="hist-btn" onclick="setKpThreshold(6,this)">Kp≥6 G2</button>
+    </div>
+
+    <!-- Modo de ventana: pre o post -->
+    <div class="section-title">Modo de análisis</div>
+    <div class="hist-controls">
+      <button class="hist-btn active" onclick="setMode('post',this)">Post-tormenta →</button>
+      <button class="hist-btn" onclick="setMode('pre',this)">← Pre-sismo</button>
+      <button class="hist-btn" onclick="setMode('both',this)">Ambos ±</button>
+    </div>
+    <div id="modeInfo" style="font-size:10px;color:var(--text-dim);margin-bottom:10px;line-height:1.5;padding:0 2px;">
+      Modo post: ¿ocurren sismos dentro de N días después de una tormenta?
+    </div>
+
+    <!-- Ventana temporal -->
+    <div class="section-title">Ventana de días</div>
+    <div class="hist-controls">
+      <button class="hist-btn active" onclick="setWindow(3,this)">±3 días</button>
+      <button class="hist-btn" onclick="setWindow(5,this)">±5 días</button>
+      <button class="hist-btn" onclick="setWindow(7,this)">±7 días</button>
+    </div>
+
+    <!-- Gráfico timeline SVG -->
+    <div class="section-title">Timeline 30 días · Kp · Dst · Sismos M≥5 <span id="chartZoneLabel" style="color:var(--geo)"></span></div>
+    <div class="chart-wrap">
+      <svg id="histChart" viewBox="0 0 760 200" xmlns="http://www.w3.org/2000/svg">
+        <rect width="760" height="200" fill="#060F1E"/>
+        <text id="chartLoading" x="380" y="100" text-anchor="middle" font-size="11" fill="#6B8BAA" font-family="monospace">Cargando datos históricos...</text>
+        <g id="chartBars"></g>
+        <g id="chartDst"></g>
+        <g id="chartQuakes"></g>
+        <g id="chartAxes"></g>
+      </svg>
+    </div>
+    <!-- Leyenda chart -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;padding:0 2px;">
+      <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:10px;height:3px;background:#FF6B1A;border-radius:1px"></div>Kp</div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:10px;height:2px;background:#00C8A0;border-radius:1px"></div>Dst</div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#FF3B5C"></div>Sismo M≥5</div>
+    </div>
+
+    <!-- Correlación -->
+    <div class="section-title">Correlación observada</div>
+    <div class="corr-badge" id="corrBadge">
+      <div class="corr-val" id="corrVal" style="color:var(--geo)">—</div>
+      <div class="corr-info">
+        <div class="corr-label" id="corrLabel">Calculando...</div>
+        <div class="corr-sub" id="corrSub">Selecciona zona y ventana para analizar</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="section-title">Estadísticas del período</div>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-val" id="stormCount" style="color:var(--solar)">—</div>
+        <div class="stat-lbl">Tormentas Kp≥4 (30 días)</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="quakeCount5" style="color:var(--alert-hi)">—</div>
+        <div class="stat-lbl">Sismos M≥5.0 en zona</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="pairCount" style="color:var(--alert-lo)">—</div>
+        <div class="stat-lbl">Pares tormenta→sismo</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="avgDelay" style="color:var(--geo)">—</div>
+        <div class="stat-lbl">Retraso promedio</div>
+      </div>
+    </div>
+
+    <!-- Comparativa global vs regional -->
+    <div id="compareBox" style="display:none;margin-bottom:14px;">
+      <div class="section-title">Global vs Regional</div>
+      <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;display:flex;gap:16px;align-items:center;">
+        <div style="flex:1;text-align:center;">
+          <div style="font-family:var(--font-display);font-size:18px;font-weight:bold;" id="ratioGlobal">—</div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">Ratio Global</div>
+        </div>
+        <div style="font-size:20px;color:var(--text-dim)">vs</div>
+        <div style="flex:1;text-align:center;">
+          <div style="font-family:var(--font-display);font-size:18px;font-weight:bold;color:var(--geo);" id="ratioRegional">—</div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">Ratio Regional</div>
+        </div>
+        <div style="flex:1;text-align:center;">
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:bold;" id="ratioDiff">—</div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">Diferencia</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:6px;line-height:1.5;" id="compareInterpret"></div>
+    </div>
+
+    <!-- Histograma de retrasos -->
+    <div id="histoWrap" style="display:none;margin-bottom:14px;">
+      <div class="section-title">Distribución de retrasos tormenta→sismo</div>
+      <div class="chart-wrap">
+        <svg id="histoChart" viewBox="0 0 760 120" xmlns="http://www.w3.org/2000/svg">
+          <rect width="760" height="120" fill="#060F1E"/>
+          <g id="histoBars"></g>
+          <g id="histoAxes"></g>
+        </svg>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:4px;line-height:1.5;" id="histoCaption"></div>
+    </div>
+
+    <!-- Pares -->
+    <div class="section-title">Pares detectados (tormenta → sismo)</div>
+    <div class="pairs-list" id="pairsList">
+      <div class="loading"><div class="spinner"></div>Analizando...</div>
+    </div>
+
+    <div class="disclaimer" style="margin-top:14px;">
+      ⚠ Correlación temporal ≠ causalidad. Alta frecuencia basal de sismos puede generar pares por azar. Análisis exploratorio.
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="refresh-btn" style="flex:1" onclick="loadHistorico()">↻ Recargar datos</button>
+      <button class="refresh-btn" style="flex:1;border-color:var(--geo);color:var(--geo);background:rgba(0,200,160,0.07)" onclick="exportCSV()">⬇ Exportar CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- ONDAS -->
+<div class="panel" id="tab-ondas">
+
+  <!-- CONTROL TEMPORAL CENTRAL — sincroniza ambos mapas -->
+  <div class="hist-card" style="padding:14px;margin-bottom:14px;">
+    <div class="card-label">Control Temporal · Ambos mapas sincronizados</div>
+
+    <!-- Slider de días -->
+    <div style="margin:12px 0 6px;">
+      <input type="range" id="timeSlider" min="0" max="6" value="6"
+        style="width:100%;accent-color:var(--solar);cursor:pointer;"
+        oninput="onSliderChange(this.value)"/>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-dim);font-family:var(--font-display);margin-bottom:10px;">
+      <span>-6 días</span><span>-5</span><span>-4</span><span>-3</span><span>-2</span><span>-1</span><span>Hoy</span>
+    </div>
+
+    <!-- Fecha seleccionada y Kp de ese día -->
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="flex:1;background:rgba(255,107,26,0.08);border:1px solid rgba(255,107,26,0.3);border-radius:8px;padding:8px 12px;">
+        <div style="font-family:var(--font-display);font-size:9px;color:var(--text-dim);letter-spacing:1px;">FECHA SELECCIONADA</div>
+        <div id="sliderDateLabel" style="font-family:var(--font-display);font-size:14px;color:var(--solar);font-weight:bold;margin-top:3px;">—</div>
+      </div>
+      <div style="background:rgba(0,200,160,0.08);border:1px solid rgba(0,200,160,0.3);border-radius:8px;padding:8px 12px;text-align:center;min-width:70px;">
+        <div style="font-family:var(--font-display);font-size:9px;color:var(--text-dim);letter-spacing:1px;">Kp PICO</div>
+        <div id="sliderKpLabel" style="font-family:var(--font-display);font-size:18px;font-weight:bold;color:var(--geo);margin-top:3px;">—</div>
+      </div>
+      <div style="background:rgba(255,59,92,0.08);border:1px solid rgba(255,59,92,0.3);border-radius:8px;padding:8px 12px;text-align:center;min-width:70px;">
+        <div style="font-family:var(--font-display);font-size:9px;color:var(--text-dim);letter-spacing:1px;">SISMOS</div>
+        <div id="sliderQuakeLabel" style="font-family:var(--font-display);font-size:18px;font-weight:bold;color:var(--alert-hi);margin-top:3px;">—</div>
+      </div>
+    </div>
+
+    <!-- Mini barra Kp de la semana para contexto -->
+    <div style="margin-top:10px;">
+      <div style="font-family:var(--font-display);font-size:9px;color:var(--text-dim);letter-spacing:1px;margin-bottom:4px;">KP ÚLTIMOS 7 DÍAS</div>
+      <div id="miniKpBar" style="display:flex;gap:2px;height:28px;align-items:flex-end;"></div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--text-dim);font-family:var(--font-display);margin-top:2px;" id="miniKpLabels"></div>
+    </div>
+  </div>
+
+  <!-- Selector tipo mapa solar -->
+  <div class="section-title">Mapa Geomagnético · NOAA OVATION</div>
+  <div class="zone-scroll" id="solarPills" style="margin-bottom:10px;">
+    <button class="zone-pill active" onclick="setSolarMap('aurora',this)">🌌 Aurora OVATION</button>
+    <button class="zone-pill" onclick="setSolarMap('kp_grid',this)">🧲 Kp latitud</button>
+    <button class="zone-pill" onclick="setSolarMap('wdmam',this)">🪨 Anom. Global</button>
+    <button class="zone-pill" onclick="setSolarMap('col_mag',this)">🇨🇴 Anom. Colombia</button>
+    <button class="zone-pill" onclick="setSolarMap('ign_esp',this)">⚡ Campo Eléctrico</button>
+  </div>
+
+  <div class="map-wrap" style="margin-bottom:14px;position:relative;">
+    <div id="solarMapLoading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--panel);z-index:2;">
+      <div style="text-align:center;"><div class="spinner"></div>
+        <div style="font-size:10px;color:var(--text-dim);font-family:var(--font-display);margin-top:8px;" id="solarLoadingText">Cargando datos OVATION...</div>
+      </div>
+    </div>
+    <svg id="solarMapSVG" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;background:#04070F;">
+      <defs>
+        <linearGradient id="oceanGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#050E1C"/>
+          <stop offset="100%" stop-color="#030A14"/>
+        </linearGradient>
+      </defs>
+      <rect width="720" height="360" fill="url(#oceanGrad)"/>
+      <!-- Graticule -->
+      <line x1="0" y1="90"  x2="720" y2="90"  stroke="#091622" stroke-width="0.5"/>
+      <line x1="0" y1="180" x2="720" y2="180" stroke="#0F2030" stroke-width="0.8"/>
+      <line x1="0" y1="270" x2="720" y2="270" stroke="#091622" stroke-width="0.5"/>
+      <line x1="180" y1="0" x2="180" y2="360" stroke="#091622" stroke-width="0.4"/>
+      <line x1="360" y1="0" x2="360" y2="360" stroke="#091622" stroke-width="0.4"/>
+      <line x1="540" y1="0" x2="540" y2="360" stroke="#091622" stroke-width="0.4"/>
+      <!-- Trópicos punteados -->
+      <line x1="0" y1="133" x2="720" y2="133" stroke="#0D1E30" stroke-width="0.5" stroke-dasharray="4,6"/>
+      <line x1="0" y1="227" x2="720" y2="227" stroke="#0D1E30" stroke-width="0.5" stroke-dasharray="4,6"/>
+      <!-- Labels -->
+      <text x="3" y="88"  font-size="6" fill="#1A3050" font-family="monospace">60N</text>
+      <text x="3" y="178" font-size="6" fill="#1A3050" font-family="monospace">EQ</text>
+      <text x="3" y="268" font-size="6" fill="#1A3050" font-family="monospace">60S</text>
+      <!-- Continentes -->
+      <path d="M72,52 L88,44 L110,40 L138,38 L162,44 L182,54 L196,68 L204,84 L208,104 L206,124 L200,144 L192,162 L182,178 L172,194 L162,208 L148,218 L134,222 L118,218 L104,208 L90,194 L78,176 L68,154 L62,130 L60,106 L62,82 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.8"/>
+      <path d="M282,18 L306,14 L324,20 L330,34 L320,46 L300,50 L282,44 L274,32 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.5"/>
+      <path d="M148,218 L162,208 L170,224 L166,240 L154,238 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.6"/>
+      <path d="M152,242 L172,236 L192,244 L208,260 L216,282 L216,308 L210,334 L196,352 L176,360 L154,356 L138,334 L128,306 L128,278 L136,256 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.8"/>
+      <path d="M326,50 L354,44 L374,50 L382,64 L378,78 L360,86 L340,84 L324,72 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.7"/>
+      <path d="M346,26 L360,20 L372,28 L374,42 L362,48 L348,44 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.5"/>
+      <path d="M326,96 L356,90 L382,98 L396,116 L402,140 L404,168 L400,196 L388,224 L370,248 L348,264 L326,260 L306,240 L294,214 L292,184 L296,152 L306,124 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.8"/>
+      <path d="M418,222 L428,212 L436,220 L436,240 L428,248 L420,240 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.4"/>
+      <path d="M374,40 L446,32 L524,38 L580,46 L618,58 L632,76 L622,96 L594,110 L558,118 L516,116 L476,108 L436,98 L400,90 L374,72 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.8"/>
+      <path d="M448,112 L478,108 L494,122 L492,148 L478,162 L458,158 L444,142 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.6"/>
+      <path d="M514,110 L550,116 L572,132 L568,154 L548,160 L522,148 L506,130 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.6"/>
+      <path d="M584,72 L596,66 L604,76 L598,88 L586,84 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.5"/>
+      <path d="M516,172 L544,166 L560,178 L554,192 L530,196 L514,184 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.5"/>
+      <path d="M564,176 L586,172 L596,184 L588,196 L570,196 L560,186 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.5"/>
+      <path d="M530,232 L578,224 L612,236 L626,260 L618,290 L598,308 L566,314 L536,302 L516,276 L512,250 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.7"/>
+      <path d="M0,340 L720,340 L720,360 L0,360 Z" fill="#122A1A" opacity="0.4"/>
+      <!-- Terminador solar dinámico -->
+      <g id="solarTerminator"></g>
+      <!-- Datos OVATION / Kp -->
+      <g id="auroraDots"></g>
+    </svg>
+    <div id="solarMapCaption" style="padding:8px 12px;font-size:10px;color:var(--text-dim);border-top:1px solid var(--ring);line-height:1.5;background:var(--panel);"></div>
+    <div style="padding:6px 12px;background:var(--panel);border-top:1px solid var(--ring);display:flex;gap:10px;flex-wrap:wrap;" id="solarLegend">
+      <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#003320"></div>1–10%</div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#00C8A0"></div>10–30%</div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#FFD166"></div>30–60%</div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#FF3B5C"></div>&gt;60%</div>
+      <div style="margin-left:auto;font-family:var(--font-display);font-size:9px;color:var(--text-dim);" id="auroraTimestamp">—</div>
+    </div>
+  </div>
+
+  <div class="section-title">Mapa Sísmico · USGS <span id="quakeDayLabel" style="color:var(--alert-hi)"></span></div>
+  <div class="hist-controls" style="margin-bottom:10px;">
+    <button class="hist-btn active" onclick="setMapMag(2.5,this)">M≥2.5</button>
+    <button class="hist-btn" onclick="setMapMag(4.5,this)">M≥4.5</button>
+    <button class="hist-btn" onclick="setMapMag(6.0,this)">M≥6.0</button>
+  </div>
+
+  <div class="map-wrap" style="margin-bottom:14px;">
+    <svg id="ondasQuakeMap" viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg">
+      <rect width="800" height="420" fill="#04101E"/>
+      <line x1="0" y1="105" x2="800" y2="105" stroke="#091622" stroke-width="0.5"/>
+      <line x1="0" y1="210" x2="800" y2="210" stroke="#0F2030" stroke-width="0.8"/>
+      <line x1="0" y1="315" x2="800" y2="315" stroke="#091622" stroke-width="0.5"/>
+      <line x1="200" y1="0" x2="200" y2="420" stroke="#091622" stroke-width="0.4"/>
+      <line x1="400" y1="0" x2="400" y2="420" stroke="#091622" stroke-width="0.4"/>
+      <line x1="600" y1="0" x2="600" y2="420" stroke="#091622" stroke-width="0.4"/>
+      <line x1="0" y1="155" x2="800" y2="155" stroke="#0D1E30" stroke-width="0.5" stroke-dasharray="3,5"/>
+      <line x1="0" y1="265" x2="800" y2="265" stroke="#0D1E30" stroke-width="0.5" stroke-dasharray="3,5"/>
+      <text x="3" y="208" font-size="7" fill="#1A3050" font-family="monospace">EQ</text>
+      <path d="M80,60 L98,50 L122,44 L153,44 L180,52 L202,66 L216,84 L222,106 L220,130 L214,154 L204,172 L192,190 L180,208 L164,222 L146,230 L126,226 L108,214 L92,196 L78,174 L68,148 L62,120 L62,92 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.9"/>
+      <path d="M314,22 L340,16 L360,24 L366,38 L354,52 L332,56 L314,48 L306,36 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.6"/>
+      <path d="M164,222 L180,208 L188,228 L184,248 L170,246 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.7"/>
+      <path d="M168,250 L190,244 L212,254 L228,272 L234,300 L232,330 L222,356 L202,372 L178,378 L154,370 L136,346 L126,316 L126,282 L134,260 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.9"/>
+      <path d="M360,58 L394,50 L416,58 L424,74 L416,90 L394,98 L366,94 L350,78 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.8"/>
+      <path d="M380,24 L396,18 L412,26 L414,40 L400,48 L382,44 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.6"/>
+      <path d="M364,108 L398,100 L424,112 L436,136 L440,168 L434,202 L418,232 L396,254 L368,260 L344,248 L326,222 L320,190 L322,156 L334,126 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.9"/>
+      <path d="M464,246 L476,234 L486,242 L486,264 L476,272 L464,264 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.5"/>
+      <path d="M416,44 L498,36 L582,44 L648,60 L680,80 L688,104 L670,124 L636,136 L590,142 L542,136 L496,122 L450,108 L416,96 L416,60 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.9"/>
+      <path d="M496,136 L532,130 L548,148 L544,172 L522,180 L498,166 L488,148 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.7"/>
+      <path d="M556,136 L598,142 L620,162 L614,186 L590,192 L562,178 L548,158 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.7"/>
+      <path d="M648,76 L664,68 L676,80 L668,96 L652,92 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.6"/>
+      <path d="M570,192 L614,184 L652,196 L662,222 L650,252 L624,266 L590,264 L560,246 L546,218 Z" fill="#122A1A" stroke="#1E4228" stroke-width="0.8"/>
+      <path d="M0,392 L800,392 L800,420 L0,420 Z" fill="#122A1A" opacity="0.5"/>
+      <g id="ondasQuakeDots"></g>
+    </svg>
+    <div style="padding:8px 12px;border-top:1px solid var(--ring);background:var(--panel);">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#00C8A0"></div>M2.5–4.4</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#FFD166"></div>M4.5–5.9</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#FF3B5C"></div>M6.0+</div>
+        <div style="margin-left:auto;font-family:var(--font-display);font-size:9px;color:var(--text-dim);" id="ondasQuakeCount">— eventos</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    💡 <strong>Cómo leer:</strong> Mueve el slider para comparar la imagen solar (NOAA) con los sismos (USGS) del mismo día. Busca si los días de mayor actividad Kp coinciden con mayor densidad sísmica en el mapa.
+  </div>
+
+  <button class="refresh-btn" style="margin-top:8px;" onclick="reloadMaps()">↻ Hoy</button>
+  <div style="text-align:center;font-family:var(--font-display);font-size:9px;color:var(--text-dim);margin-top:8px;" id="mapsTimestamp">—</div>
+</div>
+
+<!-- INFO -->
+<div class="panel" id="tab-info">
+  <div class="about-block">
+    <div class="card-label">¿Qué es GeoSolar Sentinel?</div>
+    <p>Herramienta de <span class="highlight">análisis exploratorio</span> que contrasta en tiempo real la actividad geomagnética solar con la sismicidad global, buscando patrones de coincidencia temporal — no causalidad.</p>
+    <p>La hipótesis: durante tormentas solares (Kp≥5), las corrientes telúricas inducidas en la corteza podrían actuar como <span class="highlight">"imagen diagnóstica"</span> de zonas bajo estrés tectónico — análogo a la técnica magnetotelúrica (MT) en geofísica aplicada.</p>
+    <p>Proyecto beta. Los índices son experimentales sin validación formal.</p>
+  </div>
+  <div class="about-block">
+    <div class="card-label">Fuentes de datos</div>
+    <div class="source-list">
+      <div class="source-item"><div class="source-dot"></div>NOAA SWPC — Índice Kp y viento solar (planetary_k_index_1m.json)</div>
+      <div class="source-item"><div class="source-dot"></div>NOAA SWPC — Plasma solar (solar-wind/plasma-7-day.json)</div>
+      <div class="source-item"><div class="source-dot"></div>USGS Earthquake Hazards — Sismos globales (all_day / all_week .geojson)</div>
+    </div>
+  </div>
+  <div class="about-block">
+    <div class="card-label">Escala Kp</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--geo)">Kp 0–3</span><span style="color:var(--text-dim)">Quieta</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--alert-lo)">Kp 4</span><span style="color:var(--text-dim)">Activa leve</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--solar)">Kp 5–6</span><span style="color:var(--text-dim)">Tormenta G1–G2</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--alert-hi)">Kp 7–9</span><span style="color:var(--text-dim)">Tormenta G3–G5</span></div>
+    </div>
+  </div>
+  <div class="version-tag">GEOSOLAR SENTINEL · POLLITOS APPS · BETA v0.4</div>
+</div>
+
+<script>
+// ── CONFIG ──
+const CORS_PROXIES = [
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url='
+];
+
+const ZONES = [
+  { name:"Cinturón Pacífico — LATAM", region:"Chile · Perú · Ecuador · Colombia · Venezuela", lat:-20, lon:-70, freqScore:0.95, magAvg:6.1 },
+  { name:"Japón — Arco Insular", region:"Honshu · Hokkaido · Ryukyu", lat:36, lon:138, freqScore:0.98, magAvg:5.9 },
+  { name:"Indonesia — Sunda", region:"Java · Sumatra · Sulawesi", lat:-5, lon:110, freqScore:0.97, magAvg:5.8 },
+  { name:"Cascadia — Noroeste EE.UU.", region:"Oregon · Washington · BC", lat:47, lon:-123, freqScore:0.60, magAvg:4.8 },
+  { name:"Turquía — Anatolia", region:"Falla Anatoliana del Norte", lat:39, lon:35, freqScore:0.75, magAvg:5.2 },
+  { name:"Himalaya — India-Eurasia", region:"Nepal · Pakistán · Bután", lat:28, lon:84, freqScore:0.70, magAvg:5.5 },
+  { name:"Italia — Mediterráneo Central", region:"Apeninos · Sicilia · Calabria", lat:42, lon:13, freqScore:0.65, magAvg:4.6 },
+  { name:"California — San Andrés", region:"Los Angeles · San Francisco", lat:36, lon:-119, freqScore:0.72, magAvg:4.9 },
+  { name:"Caribe — Venezuela · Trinidad", region:"Falla Boconó · Oca-Ancón", lat:10, lon:-66, freqScore:0.68, magAvg:4.7 },
+];
+
+let currentKp = 0;
+let allQuakes = [];
+let corsWorking = false;
+
+// ── TABS ──
+function showTab(name, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'ondas') initOndas();
+}
+
+// ── FETCH WITH CORS FALLBACK ──
+async function fetchWithFallback(url) {
+  // Try direct first (works in AppMint WebView)
+  try {
+    const r = await fetch(url, { mode: 'cors', cache: 'no-cache' });
+    if (r.ok) { corsWorking = true; return await r.json(); }
+  } catch(e) {}
+
+  // Try proxies
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const r = await fetch(proxy + encodeURIComponent(url), { cache: 'no-cache' });
+      if (r.ok) { corsWorking = true; return await r.json(); }
+    } catch(e) {}
+  }
+  return null;
+}
+
+// ── FETCH KP ──
+async function fetchKp() {
+  const data = await fetchWithFallback('https://services.swpc.noaa.gov/json/planetary_k_index_1m.json');
+  if (!data || !data.length) return null;
+  const last = data[data.length - 1];
+  return parseFloat(last.kp_index ?? last.Kp ?? 0);
+}
+
+// ── FETCH SOLAR WIND ──
+async function fetchSolarWind() {
+  const data = await fetchWithFallback('https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json');
+  if (!data || data.length < 2) return null;
+  const last = data[data.length - 1];
+  return { speed: parseFloat(last[1]).toFixed(0), density: parseFloat(last[2]).toFixed(1) };
+}
+
+async function fetchMagField() {
+  const data = await fetchWithFallback('https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json');
+  if (!data || data.length < 2) return null;
+  const last = data[data.length - 1];
+  return { bt: parseFloat(last[6]).toFixed(1) };
+}
+
+// ── FETCH QUAKES — endpoint correcto M>=2.5 ──
+async function fetchQuakes() {
+  // Usamos all_day para 24h M>=2.5 (captura eventos como Venezuela M4+)
+  const url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson';
+  const data = await fetchWithFallback(url);
+  if (!data) return [];
+  return data.features || [];
+}
+
+async function fetchQuakesWeek() {
+  const url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson';
+  const data = await fetchWithFallback(url);
+  if (!data) return [];
+  return data.features || [];
+}
+
+// ── DEMO DATA (cuando CORS falla en preview) ──
+function getDemoKp() { return 3.3; }
+function getDemoWind() { return { speed: '412', density: '6.2' }; }
+function getDemoMag() { return { bt: '8.4' }; }
+function getDemoQuakes() {
+  const now = Date.now();
+  return [
+    { properties: { mag: 5.2, place: 'Venezuela (demo — ver nota CORS)', time: now - 3600000*2 }, geometry: { coordinates: [-66, 10, 15] } },
+    { properties: { mag: 6.1, place: 'Costa de Chile (demo)', time: now - 3600000*5 }, geometry: { coordinates: [-72, -35, 25] } },
+    { properties: { mag: 4.8, place: 'Japón, Honshu (demo)', time: now - 3600000*8 }, geometry: { coordinates: [139, 36, 40] } },
+    { properties: { mag: 5.5, place: 'Indonesia, Sumatra (demo)', time: now - 3600000*12 }, geometry: { coordinates: [100, 3, 35] } },
+    { properties: { mag: 4.3, place: 'California (demo)', time: now - 3600000*18 }, geometry: { coordinates: [-120, 37, 10] } },
+  ];
+}
+
+// ── GEO → SVG coords ──
+function lonLatToSVG(lon, lat) {
+  const x = ((lon + 180) / 360) * 800;
+  const y = ((90 - lat) / 180) * 420;
+  return { x, y };
+}
+
+// ── UPDATE SOLAR UI ──
+function updateSolarUI(kp, wind, mag) {
+  document.getElementById('kpValue').textContent = kp !== null ? (Math.round(kp * 10) / 10) : '—';
+  const kpInt = Math.floor(kp || 0);
+  document.querySelectorAll('.kp-seg').forEach((s, i) => {
+    s.classList.remove('active-seg', 'alert-seg');
+    if (i < kpInt) s.classList.add(kpInt >= 5 ? 'alert-seg' : 'active-seg');
+  });
+  const badge = document.getElementById('statusBadge');
+  let cls = 'status-quiet', label = 'Actividad Quieta';
+  if (kp >= 7) { cls = 'status-storm'; label = `Tormenta G${kp>=9?5:kp>=8?4:3} — INTENSA`; }
+  else if (kp >= 5) { cls = 'status-storm'; label = `Tormenta G${kp>=6?2:1}`; }
+  else if (kp >= 4) { cls = 'status-moderate'; label = 'Actividad Elevada'; }
+  badge.innerHTML = `<div class="status-badge ${cls}"><div class="status-dot"></div>${label}</div>`;
+  if (wind) { document.getElementById('windSpeed').textContent = wind.speed; document.getElementById('density').textContent = wind.density; }
+  if (mag) document.getElementById('bField').textContent = mag.bt;
+  currentKp = kp || 0;
+}
+
+// ── UPDATE QUAKE LIST (24h, M>=2.5) ──
+function updateQuakeList(quakes) {
+  const now = Date.now();
+  const recent = quakes
+    .filter(q => (now - q.properties.time) < 86400000)
+    .sort((a, b) => b.properties.mag - a.properties.mag)
+    .slice(0, 15);
+  document.getElementById('quakeCount').textContent = recent.length;
+  if (!recent.length) {
+    document.getElementById('quakeList').innerHTML = '<div class="loading" style="padding:20px">Sin datos disponibles</div>';
+    return;
+  }
+  document.getElementById('quakeList').innerHTML = recent.map(q => {
+    const mag = q.properties.mag;
+    const hoursAgo = Math.round((now - q.properties.time) / 3600000);
+    const depth = q.geometry?.coordinates[2]?.toFixed(0) ?? '?';
+    const cls = mag >= 6 ? 'mag-major' : mag >= 4.5 ? 'mag-moderate' : 'mag-minor';
+    return `<div class="quake-item">
+      <div class="mag-badge ${cls}">M${mag.toFixed(1)}</div>
+      <div class="quake-info">
+        <div class="quake-place">${q.properties.place || 'Desconocido'}</div>
+        <div class="quake-meta">Hace ${hoursAgo}h · Prof. ${depth} km</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── UPDATE MAPA SVG ──
+function updateMap(quakes) {
+  const g = document.getElementById('quakeDots');
+  if (!g) return;
+  g.innerHTML = '';
+  const week = Date.now() - 7*86400000;
+  quakes
+    .filter(q => q.properties.time > week && q.geometry?.coordinates)
+    .forEach(q => {
+      const mag = q.properties.mag;
+      const [lon, lat] = q.geometry.coordinates;
+      const { x, y } = lonLatToSVG(lon, lat);
+      const r = Math.max(2, (mag - 2) * 1.8);
+      const color = mag >= 6 ? '#FF3B5C' : mag >= 4.5 ? '#FFD166' : '#00C8A0';
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', x.toFixed(1));
+      circle.setAttribute('cy', y.toFixed(1));
+      circle.setAttribute('r', r.toFixed(1));
+      circle.setAttribute('fill', color);
+      circle.setAttribute('fill-opacity', '0.75');
+      circle.setAttribute('stroke', color);
+      circle.setAttribute('stroke-width', '0.5');
+      g.appendChild(circle);
+    });
+}
+
+// ── ÍNDICE DIAGNÓSTICO ──
+function calcIndex(zone, kp, quakes) {
+  const now = Date.now();
+  const nearby = quakes.filter(q => {
+    const c = q.geometry?.coordinates;
+    if (!c) return false;
+    return Math.hypot(c[1]-zone.lat, c[0]-zone.lon) < 18;
+  });
+  const lastDays = nearby.length > 0
+    ? Math.round((now - Math.max(...nearby.map(q => q.properties.time))) / 86400000)
+    : 10;
+  const kpF = (kp / 9) * 40;
+  const freqF = zone.freqScore * 30;
+  const silenceF = lastDays > 7 ? 20 : lastDays > 3 ? 10 : 5;
+  const magF = ((zone.magAvg - 4) / 3) * 10;
+  return { score: Math.min(100, Math.round(kpF + freqF + silenceF + magF)), lastDays };
+}
+
+function updateZoneList(kp, quakes) {
+  const scored = ZONES
+    .map(z => { const { score, lastDays } = calcIndex(z, kp, quakes); return { ...z, score, lastDays }; })
+    .sort((a, b) => b.score - a.score);
+  document.getElementById('zoneList').innerHTML = scored.map((z, i) => {
+    const cls = z.score >= 65 ? 'score-hi' : z.score >= 45 ? 'score-mid' : 'score-low';
+    const itemCls = z.score >= 65 ? 'high' : z.score >= 45 ? 'elevated' : '';
+    const barColor = z.score >= 65 ? '#FF3B5C' : z.score >= 45 ? '#FFD166' : '#00C8A0';
+    return `<div class="zone-item ${itemCls}">
+      <div class="zone-rank">${i+1}</div>
+      <div class="zone-info">
+        <div class="zone-name">${z.name}</div>
+        <div class="zone-detail">${z.region} · Silencio: ${z.lastDays}d</div>
+        <div class="zone-bar"><div class="zone-bar-fill" style="width:${z.score}%;background:${barColor}"></div></div>
+      </div>
+      <div class="zone-score-wrap">
+        <div class="zone-score ${cls}">${z.score}</div>
+        <div class="zone-score-lbl">/100</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── TIMESTAMP ──
+function updateTimestamp(isDemo) {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('lastUpdate').innerHTML = (isDemo ? '⚠ Demo<br>' : 'Actualizado<br>') + `${now.getDate()}/${now.getMonth()+1} ${h}:${m}`;
+}
+
+// ── LOAD ALL ──
+async function loadAll() {
+  document.getElementById('quakeList').innerHTML = '<div class="loading"><div class="spinner"></div>Cargando sismos...</div>';
+  document.getElementById('zoneList').innerHTML = '<div class="loading"><div class="spinner"></div>Calculando índice...</div>';
+
+  const [kpReal, windReal, magReal, quakesDay] = await Promise.all([
+    fetchKp(), fetchSolarWind(), fetchMagField(), fetchQuakes()
+  ]);
+
+  const isDemo = !corsWorking;
+  const kp    = kpReal    ?? getDemoKp();
+  const wind  = windReal  ?? getDemoWind();
+  const mag   = magReal   ?? getDemoMag();
+  const quakes = quakesDay.length > 0 ? quakesDay : getDemoQuakes();
+
+  document.getElementById('corsNote').style.display = isDemo ? 'block' : 'none';
+
+  updateSolarUI(kp, wind, mag);
+  updateQuakeList(quakes);
+  updateMap(quakes);
+  updateZoneList(kp, quakes);
+  updateTimestamp(isDemo);
+  allQuakes = quakes;
+
+  // Cargar Dst en paralelo (no bloquea el resto)
+  fetchDst().then(pts => { if(pts) updateDstUI(pts); }).catch(()=>{});
+}
+
+// ── HISTÓRICO ──
+// ── HISTÓRICO ──
+let histWindowDays = 3;
+let histKpData = [];
+let histQuakeData = [];
+let activeZone = 'global';
+let globalRatio = null;
+let kpThreshold = 4;
+let analysisMode = 'post';
+let lastPairs = [];
+
+const ZONE_DEFS = {
+  global:    { label:'Global',             desc:'Todos los sismos del mundo',                            bbox:null },
+  caribe:    { label:'Caribe / Colombia',  desc:'Colombia, Venezuela, Caribe (lat 0–20, lon -85 a -55)', bbox:[0,20,-85,-55] },
+  latam:     { label:'América Latina',     desc:'Centro y Suramérica (lat -60 a 25, lon -120 a -30)',    bbox:[-60,25,-120,-30] },
+  japon:     { label:'Japón',              desc:'Arco insular japonés (lat 25–50, lon 125–150)',          bbox:[25,50,125,150] },
+  indonesia: { label:'Indonesia',          desc:'Archipiélago indonesio (lat -15 a 10, lon 90–145)',     bbox:[-15,10,90,145] },
+  cascadia:  { label:'Cascadia',           desc:'Noroeste EE.UU. y BC Canadá (lat 40–55, lon -130 a -115)', bbox:[40,55,-130,-115] },
+  turquia:   { label:'Turquía / Anatolia', desc:'Turquía y región (lat 35–45, lon 25–45)',               bbox:[35,45,25,45] },
+  california:{ label:'California',         desc:'Falla de San Andrés (lat 32–42, lon -125 a -114)',      bbox:[32,42,-125,-114] },
+};
+
+const MODE_INFO = {
+  post:'Modo post: ¿ocurren sismos dentro de N días <strong>después</strong> de una tormenta?',
+  pre: 'Modo pre: ¿hay tormentas Kp dentro de N días <strong>antes</strong> de un sismo? (señal precursora)',
+  both:'Modo ambos: sismos dentro de ±N días alrededor de cada tormenta.'
+};
+
+function setZone(zoneKey, el) {
+  activeZone = zoneKey;
+  document.querySelectorAll('.zone-pill').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const def = ZONE_DEFS[zoneKey];
+  document.getElementById('zoneInfoText').textContent = def.desc;
+  document.getElementById('chartZoneLabel').textContent = zoneKey !== 'global' ? `· ${def.label}` : '';
+  document.getElementById('compareBox').style.display = zoneKey !== 'global' ? 'block' : 'none';
+  analyzeAndRender();
+}
+
+function setWindow(days, el) {
+  histWindowDays = days;
+  document.querySelectorAll('.hist-btn').forEach(b => { if(b.textContent.includes('días')) b.classList.remove('active'); });
+  el.classList.add('active');
+  analyzeAndRender();
+}
+
+function setKpThreshold(val, el) {
+  kpThreshold = val;
+  document.querySelectorAll('.hist-btn').forEach(b => { if(b.textContent.includes('Kp')) b.classList.remove('active'); });
+  el.classList.add('active');
+  if (histKpData.length) {
+    const s = detectStorms(histKpData, kpThreshold);
+    const pg = findPairsByMode(s, histQuakeData, histWindowDays, 'post');
+    const { ratio:rg } = calcCorrelation(s, histQuakeData, pg);
+    globalRatio = rg;
+  }
+  analyzeAndRender();
+}
+
+function setMode(mode, el) {
+  analysisMode = mode;
+  document.querySelectorAll('.hist-btn').forEach(b => {
+    if(b.textContent.includes('Post')||b.textContent.includes('Pre')||b.textContent.includes('Ambos'))
+      b.classList.remove('active');
+  });
+  el.classList.add('active');
+  document.getElementById('modeInfo').innerHTML = MODE_INFO[mode];
+  analyzeAndRender();
+}
+
+function filterByZone(quakes, zoneKey) {
+  const def = ZONE_DEFS[zoneKey];
+  if (!def.bbox) return quakes;
+  const [latMin,latMax,lonMin,lonMax] = def.bbox;
+  return quakes.filter(q => q.lat!=null && q.lon!=null &&
+    q.lat>=latMin && q.lat<=latMax && q.lon>=lonMin && q.lon<=lonMax);
+}
+
+async function fetchKp30days() {
+  // noaa-planetary-k-index.json = histórico 30d (formato array de arrays)
+  let data = await fetchWithFallback('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json');
+  if (data && data.length > 2) {
+    return data.slice(1).map(row => ({ time:new Date(row[0]).getTime(), kp:parseFloat(row[1]) }))
+      .filter(d => !isNaN(d.kp) && !isNaN(d.time));
+  }
+  // Fallback: usar Kp de 1 minuto (solo últimas horas pero formato diferente)
+  data = await fetchWithFallback('https://services.swpc.noaa.gov/json/planetary_k_index_1m.json');
+  if (!data || !data.length) return null;
+  return data.map(row => ({
+    time: new Date(row.time_tag).getTime(),
+    kp: parseFloat(row.kp_index)
+  })).filter(d => !isNaN(d.kp) && !isNaN(d.time));
+}
+
+async function fetchQuakesMonth() {
+  const data = await fetchWithFallback('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/5.0_month.geojson');
+  if (!data) return [];
+  return (data.features||[]).map(f => ({
+    time:f.properties.time, mag:f.properties.mag, place:f.properties.place,
+    lat:f.geometry?.coordinates[1], lon:f.geometry?.coordinates[0], depth:f.geometry?.coordinates[2]
+  }));
+}
+
+function getDemoKp30() {
+  const now=Date.now(), pts=[];
+  for(let i=29;i>=0;i--){
+    const base=1.5+Math.sin(i*0.4)*1.2+Math.random()*1.5;
+    const spike=(i===25||i===14||i===5)?3.5+Math.random()*2:0;
+    pts.push({time:now-i*86400000, kp:Math.min(9,parseFloat((base+spike).toFixed(1)))});
+  }
+  return pts;
+}
+
+function getDemoQuakesMonth() {
+  const now=Date.now();
+  return [
+    {time:now-23*86400000,mag:6.2,place:'Chile, Atacama',      lat:-28,lon:-71, depth:35},
+    {time:now-22*86400000,mag:5.4,place:'Chile, Coquimbo',     lat:-30,lon:-72, depth:28},
+    {time:now-13*86400000,mag:5.8,place:'Japón, Honshu',       lat:36, lon:141, depth:50},
+    {time:now-12*86400000,mag:6.0,place:'Japón, costa NE',     lat:38, lon:142, depth:40},
+    {time:now- 4*86400000,mag:5.6,place:'Indonesia, Sumatra',  lat:3,  lon:98,  depth:30},
+    {time:now- 3*86400000,mag:5.1,place:'Venezuela, Caribe',   lat:10, lon:-65, depth:15},
+    {time:now- 2*86400000,mag:5.3,place:'Colombia, Chocó',     lat:5,  lon:-77, depth:20},
+    {time:now-18*86400000,mag:5.0,place:'Turquía, Anatolia',   lat:39, lon:35,  depth:10},
+    {time:now- 8*86400000,mag:5.7,place:'Perú, costa',         lat:-12,lon:-78, depth:45},
+    {time:now- 6*86400000,mag:5.2,place:'California, USA',     lat:36, lon:-120,depth:12},
+    {time:now-24*86400000,mag:5.5,place:'Colombia, Cauca',     lat:2,  lon:-76, depth:22},
+    {time:now-15*86400000,mag:5.0,place:'Ecuador, costa',      lat:-2, lon:-81, depth:18},
+    {time:now- 9*86400000,mag:6.1,place:'Cascadia, Oregon',    lat:44, lon:-129,depth:8 },
+    {time:now-26*86400000,mag:5.3,place:'Indonesia, Java',     lat:-7, lon:112, depth:60},
+    {time:now-11*86400000,mag:5.4,place:'Venezuela, Mérida',   lat:9,  lon:-71, depth:12},
+  ];
+}
+
+function detectStorms(kpData, threshold) {
+  const storms=[];
+  let inStorm=false,stormStart=null,stormPeak=0,stormTime=null;
+  kpData.forEach(d=>{
+    if(d.kp>=threshold){
+      if(!inStorm){inStorm=true;stormStart=d.time;stormPeak=d.kp;stormTime=d.time;}
+      if(d.kp>stormPeak){stormPeak=d.kp;stormTime=d.time;}
+    } else {
+      if(inStorm){storms.push({startTime:stormStart,peakTime:stormTime,peakKp:stormPeak});inStorm=false;stormPeak=0;}
+    }
+  });
+  if(inStorm) storms.push({startTime:stormStart,peakTime:stormTime,peakKp:stormPeak});
+  return storms;
+}
+
+function findPairsByMode(storms, quakes, windowDays, mode) {
+  const wMs=windowDays*86400000;
+  const pairs=[];
+  if(mode==='post'||mode==='both'){
+    storms.forEach(storm=>{
+      quakes.forEach(q=>{
+        const delay=q.time-storm.peakTime;
+        if(delay>=0&&delay<=wMs)
+          pairs.push({storm,quake:q,delayHours:Math.round(delay/3600000),delayDays:parseFloat((delay/86400000).toFixed(1)),direction:'post'});
+      });
+    });
+  }
+  if(mode==='pre'||mode==='both'){
+    quakes.forEach(q=>{
+      storms.forEach(storm=>{
+        const ahead=q.time-storm.peakTime;
+        if(ahead>=-wMs&&ahead<0)
+          pairs.push({storm,quake:q,delayHours:Math.round(Math.abs(ahead)/3600000),delayDays:parseFloat((Math.abs(ahead)/86400000).toFixed(1)),direction:'pre'});
+      });
+    });
+  }
+  const seen=new Set();
+  return pairs.filter(p=>{
+    const key=`${p.storm.peakTime}-${p.quake.time}-${p.direction}`;
+    if(seen.has(key)) return false;
+    seen.add(key); return true;
+  }).sort((a,b)=>b.quake.mag-a.quake.mag);
+}
+
+function calcCorrelation(storms, quakes, pairs) {
+  const stormCoverage=Math.min(1,(storms.length*histWindowDays)/30);
+  const expected=quakes.length*stormCoverage;
+  const ratio=expected>0?parseFloat((pairs.length/expected).toFixed(2)):0;
+  return {ratio,expected:parseFloat(expected.toFixed(1)),observed:pairs.length};
+}
+
+function drawHistogram(pairs) {
+  const wrap=document.getElementById('histoWrap');
+  const svgBars=document.getElementById('histoBars');
+  const svgAxes=document.getElementById('histoAxes');
+  const caption=document.getElementById('histoCaption');
+  if(!svgBars) return;
+  svgBars.innerHTML=''; svgAxes.innerHTML='';
+  if(!pairs.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  const W=760,H=120,PAD_L=28,PAD_B=22,PAD_T=10;
+  const chartW=W-PAD_L-8,chartH=H-PAD_B-PAD_T;
+  const bucketLabels=['0-1','1-2','2-3','3-4','4-5','5-6','6-7','>7'];
+  const buckets=new Array(8).fill(0);
+  pairs.forEach(p=>{ const d=Math.floor(p.delayDays); buckets[Math.min(d,7)]++; });
+  const maxB=Math.max(...buckets,1);
+  const bw=chartW/8;
+  buckets.forEach((count,i)=>{
+    const x=PAD_L+i*bw+bw*0.1,bWidth=bw*0.8,h=(count/maxB)*chartH,y=PAD_T+chartH-h;
+    const color=i<=1?'#FF3B5C':i<=3?'#FFD166':'#00C8A0';
+    const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x',x);rect.setAttribute('y',y);rect.setAttribute('width',bWidth);
+    rect.setAttribute('height',h);rect.setAttribute('fill',color);rect.setAttribute('opacity','0.8');
+    svgBars.appendChild(rect);
+    if(count>0){
+      const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+      lbl.setAttribute('x',x+bWidth/2);lbl.setAttribute('y',y-3);lbl.setAttribute('font-size','9');
+      lbl.setAttribute('fill','#D8E4F0');lbl.setAttribute('text-anchor','middle');lbl.setAttribute('font-family','monospace');
+      lbl.textContent=count; svgBars.appendChild(lbl);
+    }
+    const xlbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    xlbl.setAttribute('x',x+bWidth/2);xlbl.setAttribute('y',H-6);xlbl.setAttribute('font-size','8');
+    xlbl.setAttribute('fill','#6B8BAA');xlbl.setAttribute('text-anchor','middle');xlbl.setAttribute('font-family','monospace');
+    xlbl.textContent=bucketLabels[i]+'d'; svgAxes.appendChild(xlbl);
+  });
+  [0,Math.round(maxB/2),maxB].forEach(v=>{
+    const y=PAD_T+chartH-(v/maxB)*chartH;
+    const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',PAD_L-4);t.setAttribute('y',y+3);t.setAttribute('font-size','8');
+    t.setAttribute('fill','#6B8BAA');t.setAttribute('text-anchor','end');t.setAttribute('font-family','monospace');
+    t.textContent=v; svgAxes.appendChild(t);
+  });
+  const peak=buckets.indexOf(Math.max(...buckets));
+  caption.innerHTML=`Pico de coincidencias en <strong style="color:#FFD166">${bucketLabels[peak]}d</strong> post-evento. Rojo=0-2d (alta señal) | Amarillo=2-4d | Verde=4+d.`;
+}
+
+function drawChart(kpData, quakes) {
+  const bars=document.getElementById('chartBars'),qDots=document.getElementById('chartQuakes');
+  const axes=document.getElementById('chartAxes'),loading=document.getElementById('chartLoading');
+  const dstG=document.getElementById('chartDst');
+  if(!bars) return;
+  bars.innerHTML='';qDots.innerHTML='';axes.innerHTML='';
+  if(dstG) dstG.innerHTML='';
+  if(loading) loading.style.display='none';
+  if(!kpData.length) return;
+  const W=760,H=200,PAD_L=28,PAD_B=22,PAD_T=10;
+  const chartW=W-PAD_L-8,chartH=H-PAD_B-PAD_T;
+  const tMin=kpData[0].time,tMax=kpData[kpData.length-1].time,tRange=tMax-tMin||1;
+  const tx=t=>PAD_L+((t-tMin)/tRange)*chartW;
+  const ty=kp=>PAD_T+chartH-(kp/9)*chartH;
+  const thY=ty(kpThreshold);
+  const thLine=document.createElementNS('http://www.w3.org/2000/svg','line');
+  thLine.setAttribute('x1',PAD_L);thLine.setAttribute('x2',W-8);
+  thLine.setAttribute('y1',thY);thLine.setAttribute('y2',thY);
+  thLine.setAttribute('stroke','#FF6B1A');thLine.setAttribute('stroke-width','1');
+  thLine.setAttribute('stroke-dasharray','4,3');thLine.setAttribute('opacity','0.6');
+  axes.appendChild(thLine);
+  [0,3,5,7,9].forEach(kp=>{
+    const y=ty(kp);
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',PAD_L);line.setAttribute('x2',W-8);
+    line.setAttribute('y1',y);line.setAttribute('y2',y);
+    line.setAttribute('stroke',kp>=5?'#1A2840':'#0D1A2A');
+    line.setAttribute('stroke-width',kp===5?'1':'0.5');
+    axes.appendChild(line);
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x',PAD_L-4);txt.setAttribute('y',y+3);txt.setAttribute('font-size','8');
+    txt.setAttribute('fill','#6B8BAA');txt.setAttribute('text-anchor','end');txt.setAttribute('font-family','monospace');
+    txt.textContent=kp; axes.appendChild(txt);
+  });
+  const thLbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+  thLbl.setAttribute('x',W-6);thLbl.setAttribute('y',thY-2);thLbl.setAttribute('font-size','7');
+  thLbl.setAttribute('fill','#FF6B1A');thLbl.setAttribute('text-anchor','end');thLbl.setAttribute('font-family','monospace');
+  thLbl.textContent=`KP≥${kpThreshold}`; axes.appendChild(thLbl);
+  const barW=Math.max(2,chartW/kpData.length-1);
+  kpData.forEach(d=>{
+    const x=tx(d.time),h=(d.kp/9)*chartH,y=PAD_T+chartH-h;
+    const color=d.kp>=7?'#FF3B5C':d.kp>=kpThreshold?'#FF6B1A':d.kp>=(kpThreshold-1)?'#FFD166':'#1A4060';
+    const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x',x);rect.setAttribute('y',y);rect.setAttribute('width',barW);
+    rect.setAttribute('height',h);rect.setAttribute('fill',color);rect.setAttribute('opacity',d.kp>=kpThreshold?'0.85':'0.4');
+    bars.appendChild(rect);
+  });
+  quakes.forEach(q=>{
+    if(q.time<tMin||q.time>tMax) return;
+    const x=tx(q.time),r=Math.max(3,(q.mag-4.5)*2.5+3);
+    const color=q.mag>=6?'#FF3B5C':q.mag>=5.5?'#FFD166':'#00C8A0';
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',x);line.setAttribute('x2',x);
+    line.setAttribute('y1',PAD_T);line.setAttribute('y2',H-PAD_B);
+    line.setAttribute('stroke',color);line.setAttribute('stroke-width','0.8');line.setAttribute('opacity','0.3');
+    qDots.appendChild(line);
+    const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx',x);circle.setAttribute('cy',PAD_T+6);
+    circle.setAttribute('r',r);circle.setAttribute('fill',color);circle.setAttribute('opacity','0.85');
+    qDots.appendChild(circle);
+  });
+  for(let i=0;i<=30;i+=5){
+    const t=tMin+i*86400000,x=tx(t),d=new Date(t);
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x',x);txt.setAttribute('y',H-6);txt.setAttribute('font-size','8');
+    txt.setAttribute('fill','#6B8BAA');txt.setAttribute('text-anchor','middle');txt.setAttribute('font-family','monospace');
+    txt.textContent=`${d.getDate()}/${d.getMonth()+1}`; axes.appendChild(txt);
+  }
+}
+
+function exportCSV() {
+  if(!lastPairs.length){alert('Sin pares para exportar.');return;}
+  const zone=ZONE_DEFS[activeZone].label;
+  const header='zona,modo,umbral_kp,kp_pico,fecha_tormenta,fecha_sismo,retraso_dias,magnitud,lugar,profundidad_km,lat,lon';
+  const rows=lastPairs.map(p=>[
+    zone,analysisMode,kpThreshold,p.storm.peakKp,
+    new Date(p.storm.peakTime).toISOString().slice(0,10),
+    new Date(p.quake.time).toISOString().slice(0,10),
+    p.delayDays,p.quake.mag,
+    `"${p.quake.place||''}"`,
+    p.quake.depth?.toFixed(0)||'',
+    p.quake.lat?.toFixed(3)||'',
+    p.quake.lon?.toFixed(3)||''
+  ].join(',')).join('\n');
+  const csv=header+'\n'+rows;
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`geosolar_${activeZone}_kp${kpThreshold}_${analysisMode}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function analyzeAndRender() {
+  if(!histKpData.length) return;
+  const storms=detectStorms(histKpData,kpThreshold);
+  const quakesZone=filterByZone(histQuakeData,activeZone);
+  const pairs=findPairsByMode(storms,quakesZone,histWindowDays,analysisMode);
+  lastPairs=pairs;
+  const {ratio,expected,observed}=calcCorrelation(storms,quakesZone,pairs);
+  if(activeZone==='global') globalRatio=ratio;
+  const corrColor=ratio>1.5?'#FF3B5C':ratio>1.1?'#FFD166':'#00C8A0';
+  const corrLabel=ratio>1.5?'Correlación elevada en ventana':ratio>1.1?'Correlación leve sobre el azar':'Sin correlación significativa';
+  document.getElementById('corrVal').textContent=ratio+'x';
+  document.getElementById('corrVal').style.color=corrColor;
+  document.getElementById('corrLabel').textContent=corrLabel;
+  document.getElementById('corrSub').textContent=
+    `Zona: ${ZONE_DEFS[activeZone].label} | Kp≥${kpThreshold} | Modo: ${analysisMode} | Esperado: ${expected} | Observado: ${observed} | ±${histWindowDays}d`;
+  document.getElementById('stormCount').textContent=storms.length;
+  document.getElementById('quakeCount5').textContent=quakesZone.length;
+  document.getElementById('pairCount').textContent=pairs.length;
+  const avgD=pairs.length>0?(pairs.reduce((s,p)=>s+p.delayDays,0)/pairs.length).toFixed(1)+'d':'—';
+  document.getElementById('avgDelay').textContent=avgD;
+  if(activeZone!=='global'&&globalRatio!==null){
+    document.getElementById('compareBox').style.display='block';
+    const diff=parseFloat((ratio-globalRatio).toFixed(2));
+    const diffColor=diff>0.2?'#FF3B5C':diff>0?'#FFD166':'#00C8A0';
+    document.getElementById('ratioGlobal').textContent=globalRatio+'x';
+    document.getElementById('ratioGlobal').style.color='#6B8BAA';
+    document.getElementById('ratioRegional').textContent=ratio+'x';
+    document.getElementById('ratioRegional').style.color=corrColor;
+    document.getElementById('ratioDiff').textContent=(diff>=0?'+':'')+diff+'x';
+    document.getElementById('ratioDiff').style.color=diffColor;
+    document.getElementById('compareInterpret').textContent=
+      diff>0.3?`${ZONE_DEFS[activeZone].label} muestra ${diff}x más coincidencias que el promedio global. Patrón de interés.`
+      :diff>0?`Leve concentración sobre el global (+${diff}x). No significativo aún.`
+      :`${ZONE_DEFS[activeZone].label} no muestra concentración especial frente al global.`;
+  } else {
+    document.getElementById('compareBox').style.display='none';
+  }
+  const pl=document.getElementById('pairsList');
+  if(!pairs.length){
+    pl.innerHTML=`<div style="font-size:11px;color:var(--text-dim);padding:12px;text-align:center;">Sin pares · Zona: ${ZONE_DEFS[activeZone].label} · Kp≥${kpThreshold} · ±${histWindowDays}d</div>`;
+  } else {
+    pl.innerHTML=pairs.slice(0,15).map(p=>{
+      const sd=new Date(p.storm.peakTime).toLocaleDateString('es',{day:'numeric',month:'short'});
+      const qd=new Date(p.quake.time).toLocaleDateString('es',{day:'numeric',month:'short'});
+      const ic=p.storm.peakKp>=6?'pair-hi':p.storm.peakKp>=5?'pair-mid':'pair-lo';
+      const kc=p.storm.peakKp>=6?'#FF3B5C':p.storm.peakKp>=5?'#FFD166':'#00C8A0';
+      const arrow=p.direction==='pre'?'← Pre':'→ Post';
+      return `<div class="pair-item ${ic}">
+        <div class="pair-header">
+          <span class="pair-kp" style="color:${kc}">Kp ${p.storm.peakKp}</span>
+          <span class="pair-delay">${arrow} ${p.delayDays}d</span>
+        </div>
+        <div class="pair-detail">⚡ ${sd} &nbsp;|&nbsp; 🔴 M${p.quake.mag} — ${p.quake.place} (${qd})</div>
+      </div>`;
+    }).join('');
+  }
+  drawHistogram(pairs);
+  drawChart(histKpData,quakesZone);
+}
+
+async function loadHistorico() {
+  document.getElementById('pairsList').innerHTML='<div class="loading"><div class="spinner"></div>Analizando datos...</div>';
+  ['corrVal','stormCount','quakeCount5','pairCount','avgDelay'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.textContent='—';
+  });
+  const loading=document.getElementById('chartLoading');
+  if(loading){ loading.textContent='Cargando datos históricos...'; loading.style.display=''; }
+
+  // Fetch con reintentos independientes para no bloquear uno al otro
+  let kpRaw = null, quakesRaw = [];
+  try { kpRaw = await fetchKp30days(); } catch(e) {}
+  try { const q = await fetchQuakesMonth(); if(q) quakesRaw = q; } catch(e) {}
+
+  // Si ambos fallaron y hay datos en allQuakes, usarlos como base
+  if (!kpRaw && currentKp > 0) {
+    // Construir dataset Kp sintético de hoy con el valor actual
+    kpRaw = [{ time: Date.now(), kp: currentKp }];
+  }
+
+  const cutoff = Date.now() - 30*86400000;
+  histKpData = (kpRaw || getDemoKp30()).filter(d=>d.time>=cutoff).sort((a,b)=>a.time-b.time);
+
+  // Enriquecer con sismos del feed diario si el mensual está vacío
+  if (quakesRaw.length === 0 && allQuakes.length > 0) {
+    quakesRaw = allQuakes.map(q => ({
+      time: q.properties?.time || q.time,
+      mag: q.properties?.mag || q.mag,
+      place: q.properties?.place || q.place,
+      lat: q.geometry?.coordinates?.[1] ?? q.lat,
+      lon: q.geometry?.coordinates?.[0] ?? q.lon,
+      depth: q.geometry?.coordinates?.[2] ?? q.depth
+    }));
+  }
+
+  histQuakeData = (quakesRaw.length > 0 ? quakesRaw : getDemoQuakesMonth())
+    .filter(d => d.time >= cutoff);
+
+  const storms = detectStorms(histKpData, kpThreshold);
+  const pg = findPairsByMode(storms, histQuakeData, histWindowDays, 'post');
+  const { ratio:rg } = calcCorrelation(storms, histQuakeData, pg);
+  globalRatio = rg;
+
+  // Ocultar loading del chart antes de render
+  if(loading) loading.style.display = 'none';
+  analyzeAndRender();
+}
+
+// ── ONDAS — Mapa OVATION desde JSON ──
+let activeSolarMap = 'aurora';
+let ondasSliderDay = 6;
+let ondasMapMag = 2.5;
+let ondasQuakeCache = {};
+let ovationData = null;
+
+function setSolarMap(key, el) {
+  activeSolarMap = key;
+  document.querySelectorAll('#solarPills .zone-pill').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  if (key === 'col_mag') { renderColombiaMAM(); return; }
+  if (key === 'ign_esp') { renderIGNElectric(); return; }
+  renderAuroraMap();
+}
+
+function setMapMag(mag, el) {
+  ondasMapMag = mag;
+  document.querySelectorAll('#tab-ondas .hist-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderQuakeMap();
+}
+
+function sliderToDate(val) {
+  const d = new Date();
+  d.setDate(d.getDate() - (6 - parseInt(val)));
+  return d;
+}
+function dateToISO(d) { return d.toISOString().slice(0,10); }
+function formatDateLabel(d) {
+  const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  return `${dias[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+}
+
+function onSliderChange(val) {
+  ondasSliderDay = parseInt(val);
+  const d = sliderToDate(val);
+  document.getElementById('sliderDateLabel').textContent = formatDateLabel(d);
+  updateSliderHighlight(val);
+  updateSliderKpLabel(val);
+  renderQuakeMap();
+  if (ovationData) renderAuroraMap();
+}
+
+function updateSliderHighlight(val) {
+  document.querySelectorAll('#miniKpBar .mini-bar').forEach((b,i) => {
+    b.style.opacity = i===parseInt(val)?'1':'0.45';
+    b.style.outline = i===parseInt(val)?'1.5px solid var(--solar)':'none';
+  });
+}
+
+function buildMiniKpBar() {
+  const bar=document.getElementById('miniKpBar');
+  const lblRow=document.getElementById('miniKpLabels');
+  if(!bar||!histKpData.length) return;
+  bar.innerHTML=''; lblRow.innerHTML='';
+  for(let i=0;i<=6;i++){
+    const dayStart=new Date(); dayStart.setDate(dayStart.getDate()-(6-i)); dayStart.setHours(0,0,0,0);
+    const dayEnd=new Date(dayStart); dayEnd.setHours(23,59,59,999);
+    const dayKps=histKpData.filter(d=>d.time>=dayStart.getTime()&&d.time<=dayEnd.getTime());
+    const peakKp=dayKps.length?Math.max(...dayKps.map(d=>d.kp)):0;
+    const pct=Math.max(8,(peakKp/9)*100);
+    const color=peakKp>=7?'#FF3B5C':peakKp>=5?'#FF6B1A':peakKp>=4?'#FFD166':'#1A4060';
+    const col=document.createElement('div');
+    col.style.cssText='flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:28px;cursor:pointer;';
+    const b=document.createElement('div');
+    b.className='mini-bar';
+    b.style.cssText=`width:80%;height:${pct}%;background:${color};border-radius:2px 2px 0 0;transition:opacity 0.2s;opacity:${i===6?1:0.45};outline:${i===6?'1.5px solid var(--solar)':'none'};`;
+    col.appendChild(b);
+    col.onclick=()=>{ document.getElementById('timeSlider').value=i; onSliderChange(i); };
+    bar.appendChild(col);
+    const lbl=document.createElement('div');
+    lbl.style.cssText='flex:1;text-align:center;font-size:8px;color:var(--text-dim);font-family:monospace;';
+    lbl.textContent=i===6?'Hoy':`${dayStart.getDate()}/${dayStart.getMonth()+1}`;
+    lblRow.appendChild(lbl);
+  }
+  updateSliderKpLabel(6);
+}
+
+function updateSliderKpLabel(val) {
+  const d=sliderToDate(val);
+  const dayStart=new Date(d); dayStart.setHours(0,0,0,0);
+  const dayEnd=new Date(d); dayEnd.setHours(23,59,59,999);
+  const dayKps=histKpData.filter(x=>x.time>=dayStart.getTime()&&x.time<=dayEnd.getTime());
+  const peakKp=dayKps.length?Math.max(...dayKps.map(x=>x.kp)):0;
+  const kpEl=document.getElementById('sliderKpLabel');
+  if(kpEl){ kpEl.textContent=peakKp>0?peakKp.toFixed(1):'—'; kpEl.style.color=peakKp>=5?'#FF3B5C':peakKp>=4?'#FFD166':'#00C8A0'; }
+  document.getElementById('sliderDateLabel').textContent=formatDateLabel(d);
+}
+
+async function fetchOvation() {
+  return await fetchWithFallback('https://services.swpc.noaa.gov/json/ovation_aurora_latest.json');
+}
+
+
+// Terminador solar — línea día/noche
+function drawTerminator() {
+  const g = document.getElementById('solarTerminator');
+  if (!g) return;
+  g.innerHTML = '';
+  const now = new Date();
+  const dayOfYear = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
+  const declination = -23.45 * Math.cos((360/365)*(dayOfYear+10)*Math.PI/180);
+  const utcHours = now.getUTCHours() + now.getUTCMinutes()/60;
+  const sunLon = (utcHours/24)*360 - 180;
+  // Generar puntos del terminador
+  const pts = [];
+  for (let lon = -180; lon <= 180; lon += 3) {
+    const latRad = Math.atan(-Math.cos((lon - sunLon)*Math.PI/180) / Math.tan(declination*Math.PI/180));
+    const lat = latRad * 180/Math.PI;
+    const x = ((lon + 180) / 360) * 720;
+    const y = ((90 - lat) / 180) * 360;
+    pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+  }
+  // Lado nocturno como polígono semitransparente
+  const poly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  const nightSide = declination > 0 ? '0,360 720,360' : '0,0 720,0';
+  poly.setAttribute('points', pts.join(' ') + ' ' + nightSide);
+  poly.setAttribute('fill', '#000814');
+  poly.setAttribute('fill-opacity', '0.35');
+  g.appendChild(poly);
+  // Línea del terminador
+  const line = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+  line.setAttribute('points', pts.join(' '));
+  line.setAttribute('stroke', '#FFD16640');
+  line.setAttribute('stroke-width', '1');
+  line.setAttribute('fill', 'none');
+  g.appendChild(line);
+}
+
+// WDMAM — anomalías magnéticas como imagen estática de referencia
+function renderWDMAM() {
+  const g = document.getElementById('auroraDots');
+  const loading = document.getElementById('solarMapLoading');
+  const caption = document.getElementById('solarMapCaption');
+  const legend = document.getElementById('solarLegend');
+  if (!g) return;
+  g.innerHTML = '';
+  if (loading) loading.style.display = 'none';
+
+  // Mostrar imagen WDMAM como foreignObject con info
+  if (caption) caption.innerHTML = '🪨 <strong>Mapa Mundial de Anomalías Magnéticas · WDMAM v2.2 (2025)</strong><br>Muestra variaciones del campo magnético litosférico en nT. Zonas rojas/azules = anomalías positivas/negativas de la corteza. Base científica de la hipótesis diagnóstica. <em>Datos estáticos — no varían en tiempo real.</em>';
+  if (legend) legend.innerHTML = `
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;background:#1E3A8A"></div>Anomalía negativa (−nT)</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;background:#0F2A18"></div>Neutro (~0 nT)</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;background:#7A1A1A"></div>Anomalía positiva (+nT)</div>
+    <a href="https://wdmam.org" target="_blank" style="margin-left:auto;font-size:9px;color:var(--solar);font-family:var(--font-display);">wdmam.org ↗</a>`;
+
+  // Generar mapa WDMAM simplificado desde datos conocidos de anomalías principales
+  // Basado en datos publicados EMAG2/WDMAM para zonas de interés sísmico
+  const anomalies = [
+    // [lon, lat, intensidad -100 a +100 nT, radio]
+    // Dorsal Atlántica (positiva)
+    [-30,60,+60,12],[-30,40,+55,14],[-30,20,+60,12],[-30,0,+50,12],[-30,-20,+55,12],[-30,-40,+50,12],
+    // Anomalía Bangui — África Central (muy positiva)
+    [18,5,+80,18],
+    // Anomalía Kursk — Rusia (muy positiva)
+    [37,52,+75,14],
+    // Zona Andina
+    [-68,-20,-40,16],[-74,-5,-30,12],
+    // Cuenca del Pacífico (negativa)
+    [-150,0,-45,20],[-170,20,-40,18],[-140,-20,-35,16],
+    // Dorsal Índico
+    [65,-40,+45,12],[70,-20,+40,12],
+    // Anomalías Japón
+    [138,36,+35,10],[142,40,+30,8],
+    // Indonesia — Sunda
+    [105,-5,-25,14],[120,-5,-20,12],
+    // Anomalía islandesa
+    [-20,65,+65,10],
+    // Placa Árabe
+    [45,25,+30,12],
+    // Fosa de las Marianas
+    [145,15,-55,12],
+    // Anomalía Colombia — Chocó
+    [-77,5,+25,8],
+    // Cuenca del Caribe
+    [-68,14,-30,10],
+  ];
+
+  anomalies.forEach(([lon, lat, val, r]) => {
+    const x = ((lon + 180) / 360) * 720;
+    const y = ((90 - lat) / 180) * 360;
+    const absV = Math.abs(val);
+    const color = val > 0
+      ? `rgba(${Math.round(180+absV*0.6)},${Math.round(40-absV*0.2)},${Math.round(20)},0.5)`
+      : `rgba(${Math.round(20)},${Math.round(40-absV*0.2)},${Math.round(150+absV*0.8)},0.5)`;
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx', x.toFixed(1));
+    circle.setAttribute('cy', y.toFixed(1));
+    circle.setAttribute('r', r);
+    circle.setAttribute('fill', color);
+    circle.setAttribute('fill-opacity', '0.7');
+    g.appendChild(circle);
+  });
+}
+
+function renderAuroraMap() {
+  // Modo WDMAM — rama separada
+  if (activeSolarMap === 'wdmam') { renderWDMAM(); drawTerminator(); return; }
+
+  const g=document.getElementById('auroraDots');
+  const loading=document.getElementById('solarMapLoading');
+  const ts=document.getElementById('auroraTimestamp');
+  const caption=document.getElementById('solarMapCaption');
+  const legend=document.getElementById('solarLegend');
+  if(!g) return;
+  g.innerHTML='';
+
+  // Restaurar leyenda aurora si venimos de WDMAM
+  if(legend && !legend.querySelector('.aurora-leg')) {
+    legend.innerHTML = `<div class="aurora-leg" style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#003320"></div>1–10%</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#00C8A0"></div>10–30%</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#FFD166"></div>30–60%</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#FF3B5C"></div>&gt;60%</div>
+    <div style="margin-left:auto;font-family:var(--font-display);font-size:9px;color:var(--text-dim);" id="auroraTimestamp">—</div>`;
+  }
+
+  // Modo Kp por latitud
+  if (activeSolarMap === 'kp_grid') {
+    if(loading) loading.style.display='none';
+    if(caption) caption.textContent='🧲 Kp actual proyectado por latitud · Cuanto mayor el Kp, más se extiende hacia latitudes medias la perturbación geomagnética.';
+    const kpVal = currentKp || 0;
+    // Dibujar bandas de influencia Kp por latitud
+    const bands = [
+      { minLat: 67, color: '#FF3B5C', label: 'Siempre activa (Kp≥0)' },
+      { minLat: 60, color: '#FF6B1A', kpMin: 3 },
+      { minLat: 50, color: '#FFD166', kpMin: 5 },
+      { minLat: 40, color: '#00C8A0', kpMin: 7 },
+      { minLat: 30, color: '#003380', kpMin: 9 },
+    ];
+    bands.forEach(band => {
+      if (band.kpMin && kpVal < band.kpMin) return;
+      const yTop = ((90 - 90) / 180) * 360;
+      const yBot = ((90 - band.minLat) / 180) * 360;
+      const yTop2 = ((90 + band.minLat) / 180) * 360;
+      const yBot2 = 360;
+      [{ y1:0, y2:yBot }, { y1:yTop2, y2:360 }].forEach(({y1,y2}) => {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x','0'); rect.setAttribute('y',y1.toFixed(1));
+        rect.setAttribute('width','720'); rect.setAttribute('height',(y2-y1).toFixed(1));
+        rect.setAttribute('fill',band.color); rect.setAttribute('fill-opacity','0.12');
+        g.appendChild(rect);
+      });
+    });
+    drawTerminator();
+    return;
+  }
+
+  if(!ovationData||!ovationData.coordinates){
+    if(loading) loading.style.display='flex';
+    return;
+  }
+  if(loading) loading.style.display='none';
+  if(ts&&ovationData['Forecast Time']){
+    const ft=new Date(ovationData['Forecast Time']);
+    ts.textContent=`OVATION ${ft.getUTCDate()}/${ft.getUTCMonth()+1} ${String(ft.getUTCHours()).padStart(2,'0')}:${String(ft.getUTCMinutes()).padStart(2,'0')} UTC`;
+  }
+  const coords=ovationData.coordinates;
+  for(let i=0;i<coords.length;i+=3){
+    const [lon,lat,val]=coords[i];
+    if(val<2) continue;
+    const x=(lon/360)*720;
+    const y=((90-lat)/180)*360;
+    const r=Math.max(1.5,val/20);
+    let color,opacity;
+    if(val>=60){color='#FF3B5C';opacity=0.85;}
+    else if(val>=30){color='#FFD166';opacity=0.75;}
+    else if(val>=10){color='#00C8A0';opacity=0.65;}
+    else{color='#003320';opacity=0.5;}
+    const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx',x.toFixed(1));
+    circle.setAttribute('cy',y.toFixed(1));
+    circle.setAttribute('r',r.toFixed(1));
+    circle.setAttribute('fill',color);
+    circle.setAttribute('fill-opacity',opacity);
+    g.appendChild(circle);
+  }
+  const caption=document.getElementById('solarMapCaption');
+  if(caption) caption.textContent='Probabilidad de aurora en tiempo real · Modelo OVATION · NOAA SWPC · Grilla global 360×181';
+  drawTerminator();
+}
+
+async function renderQuakeMap() {
+  const d=sliderToDate(ondasSliderDay);
+  const iso=dateToISO(d);
+  const isToday=ondasSliderDay===6;
+  document.getElementById('quakeDayLabel').textContent=`· ${formatDateLabel(d)}`;
+  updateSliderKpLabel(ondasSliderDay);
+  if(ondasQuakeCache[iso]){drawOndasMap(ondasQuakeCache[iso],d);return;}
+  let quakes=[];
+  if(isToday){
+    quakes=allQuakes.length?allQuakes:(histQuakeData||[]);
+  } else {
+    const dayStart=new Date(d);dayStart.setHours(0,0,0,0);
+    const dayEnd=new Date(d);dayEnd.setHours(23,59,59,999);
+    quakes=histQuakeData.filter(q=>q.time>=dayStart.getTime()&&q.time<=dayEnd.getTime());
+    if(!quakes.length&&allQuakes.length)
+      quakes=allQuakes.filter(q=>{const qt=q.properties?q.properties.time:q.time;return qt>=dayStart.getTime()&&qt<=dayEnd.getTime();});
+  }
+  ondasQuakeCache[iso]=quakes;
+  drawOndasMap(quakes,d);
+}
+
+function drawOndasMap(quakes,d){
+  const g=document.getElementById('ondasQuakeDots');
+  const countEl=document.getElementById('ondasQuakeCount');
+  if(!g) return;
+  g.innerHTML='';
+  const normalized=quakes.map(q=>{
+    if(q.properties) return{mag:q.properties.mag,lat:q.geometry?.coordinates[1],lon:q.geometry?.coordinates[0],time:q.properties.time};
+    return q;
+  }).filter(q=>q.mag>=ondasMapMag&&q.lat!=null&&q.lon!=null);
+  normalized.forEach(q=>{
+    const x=((q.lon+180)/360)*800,y=((90-q.lat)/180)*420;
+    const r=Math.max(2.5,(q.mag-2)*1.8);
+    const color=q.mag>=6?'#FF3B5C':q.mag>=4.5?'#FFD166':'#00C8A0';
+    const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx',x.toFixed(1));circle.setAttribute('cy',y.toFixed(1));
+    circle.setAttribute('r',r.toFixed(1));circle.setAttribute('fill',color);
+    circle.setAttribute('fill-opacity','0.75');circle.setAttribute('stroke',color);
+    circle.setAttribute('stroke-width','0.5');
+    g.appendChild(circle);
+  });
+  if(countEl) countEl.textContent=`${normalized.length} eventos M≥${ondasMapMag}`;
+  const sliderQ=document.getElementById('sliderQuakeLabel');
+  if(sliderQ) sliderQ.textContent=normalized.length;
+}
+
+async function reloadMaps(){
+  ondasSliderDay=6;
+  document.getElementById('timeSlider').value=6;
+  ondasQuakeCache={};
+  const loading=document.getElementById('solarMapLoading');
+  if(loading){loading.innerHTML='<div style="text-align:center"><div class="spinner"></div><div style="font-size:10px;color:var(--text-dim);font-family:var(--font-display);margin-top:8px">Cargando OVATION...</div></div>';loading.style.display='flex';}
+  ovationData=await fetchOvation();
+  buildMiniKpBar();
+  updateSliderHighlight(6);
+  onSliderChange(6);
+  const now=new Date();
+  const ts=document.getElementById('mapsTimestamp');
+  if(ts) ts.textContent=`Actualizado: ${now.getDate()}/${now.getMonth()+1} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+}
+
+async function initOndas(){
+  if(!ovationData){
+    const loading=document.getElementById('solarMapLoading');
+    if(loading) loading.style.display='flex';
+    ovationData=await fetchOvation();
+  }
+  buildMiniKpBar();
+  updateSliderHighlight(6);
+  onSliderChange(6);
+  renderAuroraMap();
+}
+
+setInterval(()=>{if(document.getElementById('tab-ondas').classList.contains('active')) reloadMaps();},10*60*1000);
+setInterval(loadAll, 10 * 60 * 1000);
+setInterval(loadHistorico, 30 * 60 * 1000);
+
+
+// ── DST INDEX ──
+let dstHistory = []; // últimas 24h
+
+async function fetchDst() {
+  // Solo Kyoto texto plano — no corsproxy que puede colgar
+  try {
+    const now = new Date();
+    const yr = String(now.getFullYear()).slice(2);
+    const mo = String(now.getMonth()+1).padStart(2,'0');
+    const url = 'https://wdc.kugi.kyoto-u.ac.jp/dst_realtime/presentmonth/dst' + yr + mo + '.for.request';
+    const resp = await Promise.race([
+      fetch(url, {mode:'cors'}),
+      new Promise((_,rej) => setTimeout(() => rej(new Error('timeout')), 5000))
+    ]);
+    if (resp && resp.ok) {
+      const text = await resp.text();
+      const pts = parseDstKyoto(text);
+      if (pts && pts.length) return pts;
+    }
+  } catch(e) {}
+
+  // Fallback NOAA — tienen Dst en JSON de geospace
+  try {
+    const data = await fetchWithFallback('https://services.swpc.noaa.gov/products/kyoto-dst.json');
+    if (data && data.length > 1) {
+      return data.slice(1).map(row => ({
+        time: new Date(row[0]).getTime(),
+        dst: parseFloat(row[1])
+      })).filter(d => !isNaN(d.dst) && !isNaN(d.time));
+    }
+  } catch(e) {}
+  return null;
+}
+
+
+async function fetchOvation() {
+  return await fetchWithFallback('https://services.swpc.noaa.gov/json/ovation_aurora_latest.json');
+}
+
+
+// Terminador solar — línea día/noche
+function drawTerminator() {
+  const g = document.getElementById('solarTerminator');
+  if (!g) return;
+  g.innerHTML = '';
+  const now = new Date();
+  const dayOfYear = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
+  const declination = -23.45 * Math.cos((360/365)*(dayOfYear+10)*Math.PI/180);
+  const utcHours = now.getUTCHours() + now.getUTCMinutes()/60;
+  const sunLon = (utcHours/24)*360 - 180;
+  // Generar puntos del terminador
+  const pts = [];
+  for (let lon = -180; lon <= 180; lon += 3) {
+    const latRad = Math.atan(-Math.cos((lon - sunLon)*Math.PI/180) / Math.tan(declination*Math.PI/180));
+    const lat = latRad * 180/Math.PI;
+    const x = ((lon + 180) / 360) * 720;
+    const y = ((90 - lat) / 180) * 360;
+    pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+  }
+  // Lado nocturno como polígono semitransparente
+  const poly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  const nightSide = declination > 0 ? '0,360 720,360' : '0,0 720,0';
+  poly.setAttribute('points', pts.join(' ') + ' ' + nightSide);
+  poly.setAttribute('fill', '#000814');
+  poly.setAttribute('fill-opacity', '0.35');
+  g.appendChild(poly);
+  // Línea del terminador
+  const line = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+  line.setAttribute('points', pts.join(' '));
+  line.setAttribute('stroke', '#FFD16640');
+  line.setAttribute('stroke-width', '1');
+  line.setAttribute('fill', 'none');
+  g.appendChild(line);
+}
+
+// WDMAM — anomalías magnéticas como imagen estática de referencia
+function renderWDMAM() {
+  const g = document.getElementById('auroraDots');
+  const loading = document.getElementById('solarMapLoading');
+  const caption = document.getElementById('solarMapCaption');
+  const legend = document.getElementById('solarLegend');
+  if (!g) return;
+  g.innerHTML = '';
+  if (loading) loading.style.display = 'none';
+
+  // Mostrar imagen WDMAM como foreignObject con info
+  if (caption) caption.innerHTML = '🪨 <strong>Mapa Mundial de Anomalías Magnéticas · WDMAM v2.2 (2025)</strong><br>Muestra variaciones del campo magnético litosférico en nT. Zonas rojas/azules = anomalías positivas/negativas de la corteza. Base científica de la hipótesis diagnóstica. <em>Datos estáticos — no varían en tiempo real.</em>';
+  if (legend) legend.innerHTML = `
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;background:#1E3A8A"></div>Anomalía negativa (−nT)</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;background:#0F2A18"></div>Neutro (~0 nT)</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;background:#7A1A1A"></div>Anomalía positiva (+nT)</div>
+    <a href="https://wdmam.org" target="_blank" style="margin-left:auto;font-size:9px;color:var(--solar);font-family:var(--font-display);">wdmam.org ↗</a>`;
+
+  // Generar mapa WDMAM simplificado desde datos conocidos de anomalías principales
+  // Basado en datos publicados EMAG2/WDMAM para zonas de interés sísmico
+  const anomalies = [
+    // [lon, lat, intensidad -100 a +100 nT, radio]
+    // Dorsal Atlántica (positiva)
+    [-30,60,+60,12],[-30,40,+55,14],[-30,20,+60,12],[-30,0,+50,12],[-30,-20,+55,12],[-30,-40,+50,12],
+    // Anomalía Bangui — África Central (muy positiva)
+    [18,5,+80,18],
+    // Anomalía Kursk — Rusia (muy positiva)
+    [37,52,+75,14],
+    // Zona Andina
+    [-68,-20,-40,16],[-74,-5,-30,12],
+    // Cuenca del Pacífico (negativa)
+    [-150,0,-45,20],[-170,20,-40,18],[-140,-20,-35,16],
+    // Dorsal Índico
+    [65,-40,+45,12],[70,-20,+40,12],
+    // Anomalías Japón
+    [138,36,+35,10],[142,40,+30,8],
+    // Indonesia — Sunda
+    [105,-5,-25,14],[120,-5,-20,12],
+    // Anomalía islandesa
+    [-20,65,+65,10],
+    // Placa Árabe
+    [45,25,+30,12],
+    // Fosa de las Marianas
+    [145,15,-55,12],
+    // Anomalía Colombia — Chocó
+    [-77,5,+25,8],
+    // Cuenca del Caribe
+    [-68,14,-30,10],
+  ];
+
+  anomalies.forEach(([lon, lat, val, r]) => {
+    const x = ((lon + 180) / 360) * 720;
+    const y = ((90 - lat) / 180) * 360;
+    const absV = Math.abs(val);
+    const color = val > 0
+      ? `rgba(${Math.round(180+absV*0.6)},${Math.round(40-absV*0.2)},${Math.round(20)},0.5)`
+      : `rgba(${Math.round(20)},${Math.round(40-absV*0.2)},${Math.round(150+absV*0.8)},0.5)`;
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx', x.toFixed(1));
+    circle.setAttribute('cy', y.toFixed(1));
+    circle.setAttribute('r', r);
+    circle.setAttribute('fill', color);
+    circle.setAttribute('fill-opacity', '0.7');
+    g.appendChild(circle);
+  });
+}
+
+function renderAuroraMap() {
+  // Modo WDMAM — rama separada
+  if (activeSolarMap === 'wdmam') { renderWDMAM(); drawTerminator(); return; }
+
+  const g=document.getElementById('auroraDots');
+  const loading=document.getElementById('solarMapLoading');
+  const ts=document.getElementById('auroraTimestamp');
+  const caption=document.getElementById('solarMapCaption');
+  const legend=document.getElementById('solarLegend');
+  if(!g) return;
+  g.innerHTML='';
+
+  // Restaurar leyenda aurora si venimos de WDMAM
+  if(legend && !legend.querySelector('.aurora-leg')) {
+    legend.innerHTML = `<div class="aurora-leg" style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#003320"></div>1–10%</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#00C8A0"></div>10–30%</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#FFD166"></div>30–60%</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;border-radius:50%;background:#FF3B5C"></div>&gt;60%</div>
+    <div style="margin-left:auto;font-family:var(--font-display);font-size:9px;color:var(--text-dim);" id="auroraTimestamp">—</div>`;
+  }
+
+  // Modo Kp por latitud
+  if (activeSolarMap === 'kp_grid') {
+    if(loading) loading.style.display='none';
+    if(caption) caption.textContent='🧲 Kp actual proyectado por latitud · Cuanto mayor el Kp, más se extiende hacia latitudes medias la perturbación geomagnética.';
+    const kpVal = currentKp || 0;
+    // Dibujar bandas de influencia Kp por latitud
+    const bands = [
+      { minLat: 67, color: '#FF3B5C', label: 'Siempre activa (Kp≥0)' },
+      { minLat: 60, color: '#FF6B1A', kpMin: 3 },
+      { minLat: 50, color: '#FFD166', kpMin: 5 },
+      { minLat: 40, color: '#00C8A0', kpMin: 7 },
+      { minLat: 30, color: '#003380', kpMin: 9 },
+    ];
+    bands.forEach(band => {
+      if (band.kpMin && kpVal < band.kpMin) return;
+      const yTop = ((90 - 90) / 180) * 360;
+      const yBot = ((90 - band.minLat) / 180) * 360;
+      const yTop2 = ((90 + band.minLat) / 180) * 360;
+      const yBot2 = 360;
+      [{ y1:0, y2:yBot }, { y1:yTop2, y2:360 }].forEach(({y1,y2}) => {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x','0'); rect.setAttribute('y',y1.toFixed(1));
+        rect.setAttribute('width','720'); rect.setAttribute('height',(y2-y1).toFixed(1));
+        rect.setAttribute('fill',band.color); rect.setAttribute('fill-opacity','0.12');
+        g.appendChild(rect);
+      });
+    });
+    drawTerminator();
+    return;
+  }
+
+  if(!ovationData||!ovationData.coordinates){
+    if(loading) loading.style.display='flex';
+    return;
+  }
+  if(loading) loading.style.display='none';
+  if(ts&&ovationData['Forecast Time']){
+    const ft=new Date(ovationData['Forecast Time']);
+    ts.textContent=`OVATION ${ft.getUTCDate()}/${ft.getUTCMonth()+1} ${String(ft.getUTCHours()).padStart(2,'0')}:${String(ft.getUTCMinutes()).padStart(2,'0')} UTC`;
+  }
+  const coords=ovationData.coordinates;
+  for(let i=0;i<coords.length;i+=3){
+    const [lon,lat,val]=coords[i];
+    if(val<2) continue;
+    const x=(lon/360)*720;
+    const y=((90-lat)/180)*360;
+    const r=Math.max(1.5,val/20);
+    let color,opacity;
+    if(val>=60){color='#FF3B5C';opacity=0.85;}
+    else if(val>=30){color='#FFD166';opacity=0.75;}
+    else if(val>=10){color='#00C8A0';opacity=0.65;}
+    else{color='#003320';opacity=0.5;}
+    const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx',x.toFixed(1));
+    circle.setAttribute('cy',y.toFixed(1));
+    circle.setAttribute('r',r.toFixed(1));
+    circle.setAttribute('fill',color);
+    circle.setAttribute('fill-opacity',opacity);
+    g.appendChild(circle);
+  }
+  const caption=document.getElementById('solarMapCaption');
+  if(caption) caption.textContent='Probabilidad de aurora en tiempo real · Modelo OVATION · NOAA SWPC · Grilla global 360×181';
+  drawTerminator();
+}
+
+async function renderQuakeMap() {
+  const d=sliderToDate(ondasSliderDay);
+  const iso=dateToISO(d);
+  const isToday=ondasSliderDay===6;
+  document.getElementById('quakeDayLabel').textContent=`· ${formatDateLabel(d)}`;
+  updateSliderKpLabel(ondasSliderDay);
+  if(ondasQuakeCache[iso]){drawOndasMap(ondasQuakeCache[iso],d);return;}
+  let quakes=[];
+  if(isToday){
+    quakes=allQuakes.length?allQuakes:(histQuakeData||[]);
+  } else {
+    const dayStart=new Date(d);dayStart.setHours(0,0,0,0);
+    const dayEnd=new Date(d);dayEnd.setHours(23,59,59,999);
+    quakes=histQuakeData.filter(q=>q.time>=dayStart.getTime()&&q.time<=dayEnd.getTime());
+    if(!quakes.length&&allQuakes.length)
+      quakes=allQuakes.filter(q=>{const qt=q.properties?q.properties.time:q.time;return qt>=dayStart.getTime()&&qt<=dayEnd.getTime();});
+  }
+  ondasQuakeCache[iso]=quakes;
+  drawOndasMap(quakes,d);
+}
+
+function drawOndasMap(quakes,d){
+  const g=document.getElementById('ondasQuakeDots');
+  const countEl=document.getElementById('ondasQuakeCount');
+  if(!g) return;
+  g.innerHTML='';
+  const normalized=quakes.map(q=>{
+    if(q.properties) return{mag:q.properties.mag,lat:q.geometry?.coordinates[1],lon:q.geometry?.coordinates[0],time:q.properties.time};
+    return q;
+  }).filter(q=>q.mag>=ondasMapMag&&q.lat!=null&&q.lon!=null);
+  normalized.forEach(q=>{
+    const x=((q.lon+180)/360)*800,y=((90-q.lat)/180)*420;
+    const r=Math.max(2.5,(q.mag-2)*1.8);
+    const color=q.mag>=6?'#FF3B5C':q.mag>=4.5?'#FFD166':'#00C8A0';
+    const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx',x.toFixed(1));circle.setAttribute('cy',y.toFixed(1));
+    circle.setAttribute('r',r.toFixed(1));circle.setAttribute('fill',color);
+    circle.setAttribute('fill-opacity','0.75');circle.setAttribute('stroke',color);
+    circle.setAttribute('stroke-width','0.5');
+    g.appendChild(circle);
+  });
+  if(countEl) countEl.textContent=`${normalized.length} eventos M≥${ondasMapMag}`;
+  const sliderQ=document.getElementById('sliderQuakeLabel');
+  if(sliderQ) sliderQ.textContent=normalized.length;
+}
+
+async function reloadMaps(){
+  ondasSliderDay=6;
+  document.getElementById('timeSlider').value=6;
+  ondasQuakeCache={};
+  const loading=document.getElementById('solarMapLoading');
+  if(loading){loading.innerHTML='<div style="text-align:center"><div class="spinner"></div><div style="font-size:10px;color:var(--text-dim);font-family:var(--font-display);margin-top:8px">Cargando OVATION...</div></div>';loading.style.display='flex';}
+  ovationData=await fetchOvation();
+  buildMiniKpBar();
+  updateSliderHighlight(6);
+  onSliderChange(6);
+  const now=new Date();
+  const ts=document.getElementById('mapsTimestamp');
+  if(ts) ts.textContent=`Actualizado: ${now.getDate()}/${now.getMonth()+1} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+}
+
+async function initOndas(){
+  if(!ovationData){
+    const loading=document.getElementById('solarMapLoading');
+    if(loading) loading.style.display='flex';
+    ovationData=await fetchOvation();
+  }
+  buildMiniKpBar();
+  updateSliderHighlight(6);
+  onSliderChange(6);
+  renderAuroraMap();
+}
+
+setInterval(()=>{if(document.getElementById('tab-ondas').classList.contains('active')) reloadMaps();},10*60*1000);
+setInterval(loadAll, 10 * 60 * 1000);
+setInterval(loadHistorico, 30 * 60 * 1000);
+
+
+// ── DST INDEX ──
+let dstHistory = []; // últimas 24h
+
+async function fetchDst() {
+  // USGS Geomag provee Dst en tiempo real con CORS libre
+  const url = 'https://geomag.usgs.gov/realtime/dst/';
+  try {
+    const r = await fetchWithFallback('https://corsproxy.io/?' + encodeURIComponent(url));
+    if (r && r.times) {
+      // Formato USGS: {times:[...], values:[...]}
+      const vals = r.values || r.dst || [];
+      const times = r.times || [];
+      return times.map((t,i) => ({ time: new Date(t).getTime(), dst: parseFloat(vals[i]) }))
+        .filter(d => !isNaN(d.dst));
+    }
+  } catch(e) {}
+
+  // Fallback: parsear texto de Kyoto
+  try {
+    const now = new Date();
+    const yr = now.getFullYear().toString().slice(2);
+    const mo = String(now.getMonth()+1).padStart(2,'0');
+    const kyotoUrl = `https://wdc.kugi.kyoto-u.ac.jp/dst_realtime/presentmonth/dst${yr}${mo}.for.request`;
+    const raw = await fetchWithFallback(kyotoUrl);
+    if (raw) return parseDstKyoto(typeof raw==='string' ? raw : JSON.stringify(raw));
+  } catch(e) {}
+  return null;
+}
+
+function parseDstKyoto(text) {
+  const pts = [];
+  if (typeof text !== 'string') return null;
+  const now = new Date();
+  const yr = now.getFullYear();
+  const mo = now.getMonth();
+  const lines = text.split('
+');
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed[0] < '1' || trimmed[0] > '9') return;
+    const parts = trimmed.split(' ').filter(s=>s!=='');
+    if (parts.length < 5) return;
+    const day = parseInt(parts[0]);
+    if (isNaN(day) || day < 1 || day > 31) return;
+    for (let h = 1; h < parts.length && h <= 24; h++) {
+      const v = parseInt(parts[h]);
+      if (!isNaN(v) && Math.abs(v) < 900) {
+        pts.push({ time: new Date(yr, mo, day, h-1).getTime(), dst: v });
+      }
+    }
+  });
+  return pts.length > 0 ? pts : null;
+}
+
+function updateDstUI(pts) {
+  if (!pts || !pts.length) { document.getElementById('dstValue').textContent = '—'; return; }
+  dstHistory = pts;
+  const last24 = pts.filter(p => p.time > Date.now() - 86400000);
+  const current = pts[pts.length-1];
+  const dstVal = current ? current.dst : 0;
+
+  // Valor actual
+  const dstEl = document.getElementById('dstValue');
+  if (dstEl) { dstEl.textContent = dstVal >= 0 ? '+'+dstVal : dstVal; }
+
+  // Color semántico
+  let badgeClass = 'dst-quiet', badgeLabel = 'Campo quieto';
+  if (dstVal <= -250) { badgeClass='dst-severe'; badgeLabel='Tormenta SEVERA'; }
+  else if (dstVal <= -100) { badgeClass='dst-storm'; badgeLabel='Tormenta intensa'; }
+  else if (dstVal <= -30) { badgeClass='dst-active'; badgeLabel='Tormenta leve'; }
+  const badge = document.getElementById('dstBadge');
+  if (badge) badge.innerHTML = `<span class="status-badge ${badgeClass}"><span class="status-dot"></span>${badgeLabel}</span>`;
+
+  // Color del valor
+  if (dstEl) dstEl.style.color = dstVal <= -100 ? '#FF3B5C' : dstVal <= -30 ? '#FFD166' : '#00C8A0';
+
+  // Stats 24h
+  if (last24.length) {
+    const vals = last24.map(p=>p.dst);
+    const mn = Math.min(...vals), mx = Math.max(...vals);
+    const trend = vals.length > 2 ? (vals[vals.length-1] - vals[vals.length-4]) : 0;
+    const el = id => document.getElementById(id);
+    if(el('dstMin')) el('dstMin').textContent = mn + ' nT';
+    if(el('dstMax')) el('dstMax').textContent = (mx>=0?'+':'')+mx + ' nT';
+    if(el('dstTrend')) {
+      el('dstTrend').textContent = trend < -5 ? '↓ Bajando' : trend > 5 ? '↑ Subiendo' : '→ Estable';
+      el('dstTrend').style.color = trend < -10 ? '#FF3B5C' : trend > 5 ? '#00C8A0' : '#FFD166';
+    }
+  }
+
+  // Mini chart SVG
+  drawDstChart(last24.length > 0 ? last24 : pts.slice(-24));
+}
+
+function drawDstChart(pts) {
+  const g = document.getElementById('dstLine');
+  if (!g || !pts.length) return;
+  g.innerHTML = '';
+  const W=400, H=60, PAD=4;
+  const vals = pts.map(p=>p.dst);
+  const minV = Math.min(...vals, -10), maxV = Math.max(...vals, 10);
+  const range = Math.max(maxV - minV, 20);
+  const tx = (i) => PAD + (i/(pts.length-1||1))*(W-PAD*2);
+  const ty = (v) => PAD + (1-(v-minV)/range)*(H-PAD*2);
+
+  // Zona de tormenta
+  const y30 = ty(-30), y100 = ty(-100);
+  if (y30 < H && y30 > 0) {
+    const band = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    band.setAttribute('x','0'); band.setAttribute('y', Math.max(0,y100).toFixed(1));
+    band.setAttribute('width',W); band.setAttribute('height', (Math.min(H,y30)-Math.max(0,y100)).toFixed(1));
+    band.setAttribute('fill','rgba(255,59,92,0.08)');
+    g.appendChild(band);
+  }
+
+  // Línea Dst
+  const pts2 = pts.map((p,i)=>`${tx(i).toFixed(1)},${ty(p.dst).toFixed(1)}`).join(' ');
+  const line = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+  line.setAttribute('points', pts2);
+  line.setAttribute('stroke', '#00C8A0');
+  line.setAttribute('stroke-width','1.5');
+  line.setAttribute('fill','none');
+  g.appendChild(line);
+
+  // Punto actual
+  const last = pts[pts.length-1];
+  const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  circle.setAttribute('cx', tx(pts.length-1).toFixed(1));
+  circle.setAttribute('cy', ty(last.dst).toFixed(1));
+  circle.setAttribute('r','3');
+  circle.setAttribute('fill', last.dst <= -30 ? '#FF3B5C' : '#00C8A0');
+  g.appendChild(circle);
+}
+
+// ── MODOS COLOMBIA MAM e IGN España ──
+function renderColombiaMAM() {
+  const g = document.getElementById('auroraDots');
+  const loading = document.getElementById('solarMapLoading');
+  const caption = document.getElementById('solarMapCaption');
+  const legend = document.getElementById('solarLegend');
+  if(!g) return;
+  g.innerHTML='';
+  if(loading) loading.style.display='none';
+
+  if(caption) caption.innerHTML='🇨🇴 <strong>Anomalías Magnéticas de Colombia · ANH/COLMAG.DAT</strong><br>Mapa de Intensidad Magnética Total. Rango: −113 nT a +104 nT. Positivos en cordilleras (Occidental, Santander, Boyacá). Negativos en Sabana de Bogotá y Piedemonte Llanero. Fuente: Agencia Nacional de Hidrocarburos.';
+
+  if(legend) legend.innerHTML=`
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;background:#7A1A1A;border-radius:2px"></div>Positivo +nT (Cordilleras)</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;background:#0F2A18;border-radius:2px"></div>Neutro</div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-dim)"><div style="width:8px;height:8px;background:#1E3A8A;border-radius:2px"></div>Negativo −nT (Cuencas)</div>
+    <a href="https://anh.gov.co/documents/9/MAPA_DE_INTENSIDAD_MAGNETICA_TOTAL_REDUCIDA_AL_POLO_DE_LA_REPUBLICA_DE_COLOMBIA.pdf" target="_blank" style="margin-left:auto;font-size:9px;color:var(--solar);font-family:var(--font-display);">PDF ANH ↗</a>`;
+
+  // Anomalías Colombia basadas en datos ANH/COLMAG.DAT publicados
+  const colAnom = [
+    // Cordillera Occidental — positivo moderado
+    [-77.5,6.5,+65,6],[-76.8,5.5,+70,5],[-76.2,4.5,+60,5],[-76.8,7.5,+55,5],[-77.2,8.5,+50,5],
+    // Cordillera Central — mixto
+    [-75.5,6,+30,5],[-75.2,5,+25,5],[-75.8,4,+35,5],[-74.8,7,+20,5],
+    // Santander y Boyacá — positivo fuerte
+    [-73.2,6.8,+85,7],[-73.5,7.5,+80,6],[-72.8,6.2,+75,6],[-74,7,+60,5],
+    // Sabana de Bogotá — negativo
+    [-74.2,4.8,-55,8],[-74.5,4.2,-60,7],[-74,5.2,-45,6],
+    // Piedemonte Llanero — negativo
+    [-73.8,4,-40,7],[-72.5,4.5,-45,8],[-72,5.5,-35,6],[-72.5,6.5,-30,5],
+    // Orinoquía — positivo (basamento cratónico)
+    [-71,5,+50,7],[-70,4.5,+55,8],[-69.5,5.5,+45,6],[-70.5,6,+40,6],
+    // Amazonía — positivo
+    [-72,1.5,+40,6],[-70.5,2,+35,5],[-71.5,0,+45,6],
+    // Chocó — anomalía negativa interesante NW-SE
+    [-76.5,2,-50,6],[-75.5,1,-45,5],[-74.5,0,-55,6],[-73.5,-0.5,-50,5],
+    // Costa Caribe — mixto
+    [-75,10.5,+25,5],[-74,11,+20,5],[-76,9.5,+30,5],
+    // Sierra Nevada de Santa Marta — positivo
+    [-73.7,10.8,+60,5],
+    // Valle del Cauca/Cauca
+    [-76.5,4,+40,5],[-76,3,+35,5],
+    // Cuenca Catatumbo — negativo
+    [-72.5,8.5,-35,5],[-73,9,-40,5],
+  ];
+
+  colAnom.forEach(([lon, lat, val, r]) => {
+    const x = ((lon+180)/360)*720;
+    const y = ((90-lat)/180)*360;
+    const absV = Math.abs(val);
+    const color = val > 0
+      ? `rgba(${Math.min(255,140+absV)},${Math.max(0,40-absV/3)},20,0.65)`
+      : `rgba(20,${Math.max(0,40-absV/3)},${Math.min(255,120+absV)},0.65)`;
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx',x.toFixed(1)); circle.setAttribute('cy',y.toFixed(1));
+    circle.setAttribute('r',r); circle.setAttribute('fill',color);
+    circle.setAttribute('fill-opacity','0.75');
+    g.appendChild(circle);
+  });
+
+  // Highlight Colombia con borde
+  const border = document.createElementNS('http://www.w3.org/2000/svg','path');
+  // Contorno aproximado de Colombia en coordenadas SVG (720x360)
+  const colPts = [
+    [-79,2],[-77,1],[-75.5,-0.5],[-73.5,-1],[-70.5,-0.5],[-67.5,2],
+    [-67,4],[-67.5,6],[-68,7],[-68.5,8],[-71,7.5],[-72.5,8],[-73.5,9],
+    [-72.5,10.5],[-71.5,11],[-73,11.5],[-75,11],[-76,10],[-77.5,8.5],
+    [-78.5,7],[-79,5],[-79,2]
+  ].map(([lon,lat])=>`${((lon+180)/360*720).toFixed(1)},${((90-lat)/180*360).toFixed(1)}`).join(' ');
+  border.setAttribute('points',colPts);
+  border.setAttribute('fill','none');
+  border.setAttribute('stroke','#FFD16680');
+  border.setAttribute('stroke-width','1.2');
+  border.setAttribute('stroke-dasharray','4,3');
+  const poly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  poly.setAttribute('points',colPts);
+  poly.setAttribute('fill','none');
+  poly.setAttribute('stroke','#FFD16660');
+  poly.setAttribute('stroke-width','1');
+  poly.setAttribute('stroke-dasharray','4,3');
+  g.appendChild(poly);
+
+  drawTerminator();
+}
+
+function renderIGNElectric() {
+  const g = document.getElementById('auroraDots');
+  const loading = document.getElementById('solarMapLoading');
+  const caption = document.getElementById('solarMapCaption');
+  const legend = document.getElementById('solarLegend');
+  if(!g) return;
+  g.innerHTML='';
+
+  caption && (caption.innerHTML='⚡ <strong>Campo Eléctrico Geotelúrico · Observatorio San Pablo, Toledo (IGN España)</strong><br>Línea geopotencial actualizada cada 60 min. Mide corrientes telúricas inducidas — el mecanismo central de la hipótesis diagnóstica. Zona geográfica: Península Ibérica / Europa Occidental.');
+
+  legend && (legend.innerHTML=`
+    <div style="font-size:9px;color:var(--text-dim);">⚡ Corrientes telúricas = corrientes eléctricas en la corteza inducidas por variaciones del campo magnético externo (tormentas solares)</div>
+    <a href="http://www.ign.es/web/resources/geomagnetismo/geoelectrogramas/SPT_24h_Campo_electrico.png" target="_blank" style="margin-left:auto;font-size:9px;color:var(--solar);font-family:var(--font-display);">Ver imagen IGN ↗</a>`);
+
+  // Mostrar marcador del observatorio en el mapa
+  const spLon = -4.35, spLat = 39.55; // Toledo, España
+  const x = ((spLon+180)/360)*720;
+  const y = ((90-spLat)/180)*360;
+
+  // Pulso en la ubicación
+  [20,14,8].forEach((r,i) => {
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',x.toFixed(1)); c.setAttribute('cy',y.toFixed(1));
+    c.setAttribute('r',r); c.setAttribute('fill','none');
+    c.setAttribute('stroke','#FFD166'); c.setAttribute('stroke-width','1');
+    c.setAttribute('opacity',(0.6-i*0.2).toFixed(1));
+    g.appendChild(c);
+  });
+  const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  dot.setAttribute('cx',x.toFixed(1)); dot.setAttribute('cy',y.toFixed(1));
+  dot.setAttribute('r','4'); dot.setAttribute('fill','#FFD166');
+  g.appendChild(dot);
+
+  const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+  lbl.setAttribute('x',(x+6).toFixed(1)); lbl.setAttribute('y',(y-6).toFixed(1));
+  lbl.setAttribute('font-size','8'); lbl.setAttribute('fill','#FFD166');
+  lbl.setAttribute('font-family','monospace');
+  lbl.textContent = 'Obs. San Pablo';
+  g.appendChild(lbl);
+
+  // Info sobre qué muestra
+  const info = document.createElementNS('http://www.w3.org/2000/svg','text');
+  info.setAttribute('x','10'); info.setAttribute('y','350');
+  info.setAttribute('font-size','8'); info.setAttribute('fill','#6B8BAA');
+  info.setAttribute('font-family','monospace');
+  info.textContent = 'Imagen en tiempo real disponible en enlace IGN ↗ (bloqueada por CORS)';
+  g.appendChild(info);
+
+  if(loading) loading.style.display='none';
+  drawTerminator();
+}
+
+// ── TAMAÑO DE TEXTO ──
+function setFontSize(size) {
+  document.body.classList.remove('fs-sm','fs-lg');
+  if (size==='sm') document.body.classList.add('fs-sm');
+  if (size==='lg') document.body.classList.add('fs-lg');
+  const on  = 'border-color:var(--solar);background:rgba(255,107,26,0.12);color:var(--solar);';
+  const off = 'border-color:var(--ring);background:transparent;color:var(--text-dim);';
+  ['S','M','L'].forEach((l,i) => {
+    const key = ['sm','md','lg'][i];
+    const btn = document.getElementById('fs'+l);
+    if (!btn) return;
+    // reset inline then apply
+    btn.style.borderColor = size===key ? 'var(--solar)' : '';
+    btn.style.background  = size===key ? 'rgba(255,107,26,0.12)' : 'transparent';
+    btn.style.color       = size===key ? 'var(--solar)' : 'var(--text-dim)';
+  });
+  try { localStorage.setItem('gs_fontsize', size); } catch(e) {}
+}
+
+// Restaurar tamaño guardado al iniciar
+try {
+  const saved = localStorage.getItem('gs_fontsize');
+  if (saved) setFontSize(saved);
+} catch(e) {}
+
+loadAll();
+loadHistorico();
+</script>
+</body>
+</html>

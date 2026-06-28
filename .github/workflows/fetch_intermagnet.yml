@@ -1,0 +1,35 @@
+name: Fetch INTERMAGNET Data
+
+on:
+  schedule:
+    # Cada hora en el minuto 5
+    - cron: '5 * * * *'
+  # Permitir ejecución manual desde GitHub
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fetch INTERMAGNET data
+        run: python fetch_intermagnet.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name  "GeoSolar Bot"
+          git config user.email "geosolar-bot@users.noreply.github.com"
+          git add intermagnet_data.json
+          # Solo commit si hay cambios
+          git diff --staged --quiet || git commit -m "chore: update INTERMAGNET data $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push

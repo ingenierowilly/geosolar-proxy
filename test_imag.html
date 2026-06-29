@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Test INTERMAGNET</title>
+<style>body{background:#111;color:#eee;font-family:monospace;padding:20px;}
+.ok{color:#00C8A0;} .err{color:#FF3B5C;} pre{background:#222;padding:10px;border-radius:6px;overflow-x:auto;font-size:11px;}</style>
+</head>
+<body>
+<h2>🔍 Diagnóstico INTERMAGNET</h2>
+<div id="out">Probando...</div>
+<script>
+const URL = 'https://ingenierowilly.github.io/geosolar-proxy/intermagnet_data.json';
+const out = document.getElementById('out');
+
+async function test() {
+  let html = '';
+
+  // Test 1: URL directa
+  html += '<h3>Test 1: Fetch directo</h3>';
+  try {
+    const r = await fetch(URL + '?t=' + Date.now());
+    html += `<p class="${r.ok?'ok':'err'}">Status: ${r.status} ${r.statusText}</p>`;
+    if (r.ok) {
+      const j = await r.json();
+      html += `<p class="ok">✅ JSON cargado. generated: ${j.generated}</p>`;
+      html += `<p>Observatorios:</p><pre>`;
+      Object.entries(j.observatories||{}).forEach(([k,v]) => {
+        html += `${k}: ok=${v.ok}, error=${v.error||'—'}, current_F=${v.current_F||'—'}\n`;
+      });
+      html += `</pre>`;
+      html += `<p>JSON completo (primeros 500 chars):</p><pre>${JSON.stringify(j).slice(0,500)}</pre>`;
+    } else {
+      const txt = await r.text();
+      html += `<pre class="err">${txt.slice(0,200)}</pre>`;
+    }
+  } catch(e) {
+    html += `<p class="err">❌ Error: ${e.message}</p>`;
+  }
+
+  // Test 2: Headers CORS
+  html += '<h3>Test 2: Headers de respuesta</h3>';
+  try {
+    const r = await fetch(URL + '?t=' + Date.now());
+    const headers = {};
+    r.headers.forEach((v,k) => headers[k]=v);
+    html += `<pre>${JSON.stringify(headers, null, 2)}</pre>`;
+  } catch(e) {
+    html += `<p class="err">❌ ${e.message}</p>`;
+  }
+
+  out.innerHTML = html;
+}
+test();
+</script>
+</body>
+</html>
